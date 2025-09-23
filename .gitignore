@@ -201,6 +201,18 @@ cython_debug/
 .cursorignore
 .cursorindexingignore
 
+# OS cruft
+.DS_Store
+Thumbs.db
+
+# editor folders
+.vscode/
+.idea/
+
+# Local app config & env variants
+.env.*
+*.local.json
+
 # Marimo
 marimo/_static/
 marimo/_lsp/
