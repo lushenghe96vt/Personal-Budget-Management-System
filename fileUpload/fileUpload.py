@@ -39,7 +39,7 @@ def is_valid_file(filename: str) -> bool:
     
     return True
 
-def upload_statement(filename: str, bank: Banks) -> list:
+def upload_statement(filename: str, bank: Banks = Banks.WELLS_FARGO) -> list:
     """
     Takes in a bank statement and converts it into a list of dicts (transactions)
     """
