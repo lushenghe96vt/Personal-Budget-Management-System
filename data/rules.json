@@ -1,0 +1,123 @@
+{
+  "Subscriptions": [
+    "youtubeprem", "youtube prem", "youtube premium", "yt premium",
+    "pp spotify", "spotify",
+    "google one",
+    "amazon prime", "amzn prime",
+    "openai chatgpt", "chatgpt su", "chatgpt sub", "openai.com",
+    "legalzoom books",
+    "recurring payment", "recurring subscription",
+    "re:pp\\s*spotify",
+    "re:google\\s*one",
+    "re:amazon\\s*prime",
+    "re:openai\\s+chatgpt"
+  ],
+
+  "Gaming & Digital": [
+    "steam game", "steam purchase", "valve",
+    "google pokemon", "jp pokemon", "phobies pvp",
+    "skate center", "roller rink",
+    "re:paypal\\s*(steam|valve)",
+    "re:on\\s+sq\\s+skate\\s+center"
+  ],
+
+  "Dining": [
+    "waffle house",
+    "wendy's", "wendys",
+    "cook out",
+    "arbys", "arby's",
+    "hardees", "hardee's",
+    "burger king",
+    "chick-fil-a", "chick fil a",
+    "chipotle",
+    "kung fu tea",
+    "cafe mekong",
+    "oasis world market",
+    "py cafe", "py kung fu tea",
+    "tst rnk blacksburg",
+    "re:mc ?donald'?s",
+    "re:restaurant",
+    "re:bar\\b"
+  ],
+
+  "Gas": [
+    "kroger fuel",
+    "shell", "exxon", "bp", "chevron", "speedway",
+    "7-eleven gas", "7 eleven gas",
+    "fuel center",
+    "re:fuel\\b"
+  ],
+
+  "Groceries": [
+    "kroger ", "kroger  ", "kroger #", "kroger 4 ", "kroger 2 ", "kroger 402",
+    "food lion",
+    "walmart", "wm superc", "supercenter",
+    "trader joe", "aldi",
+    "world market"
+  ],
+
+  "Utilities": [
+    "aep appalachian", "appalachian power",
+    "atmos energy",
+    "finance dpt", "finance dpt-town", "town of blacksburg",
+    "dominion energy",
+    "verizon", "xfinity", "comcast",
+    "water bill",
+    "re:utility|utilities|electric|gas\\s+service|sewer|trash"
+  ],
+
+  "Transit & Parking": [
+    "parking", "park blacksburg",
+    "uber", "lyft", "metro", "toll",
+    "re:blacksburg\\s+va\\s+park"
+  ],
+
+  "Fitness": [
+    "planet fitness",
+    "iclub fees",
+    "pf christiansbur"
+  ],
+
+  "Software & Online Services": [
+    "lemon squeezy", "lemonsqueezy",
+    "pebblehost",
+    "tebex",
+    "legalzoom",
+    "stripe payout", "stripe transfer"
+  ],
+
+  "Income": [
+    "venmo cashout",
+    "cash deposit",
+    "direct deposit",
+    "payroll",
+    "refund",
+    "re:atm\\s+cash\\s+deposit",
+    "re:stripe\\s+payout"
+  ],
+
+  "Transfers In": [
+    "recurring transfer from",
+    "transfer from"
+  ],
+
+  "Transfers Out": [
+    "venmo payment",
+    "zelle payment",
+    "cash app"
+  ],
+
+  "Cash & ATM": [
+    "atm withdrawal", "non-wf atm",
+    "atm cash deposit",
+    "cash withdrawal", "cash advance"
+  ],
+
+  "Rent": [
+    "leasing", "apartments", "property management", "rent"
+  ],
+
+  "Healthcare": [
+    "clinic", "hospital", "urgent care", "pharmacy", "cvs", "walgreens", "rite aid"
+  ]
+}
