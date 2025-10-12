@@ -9,12 +9,13 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QFont
-from ..models import UserManager, User
+from models import UserManager, User
 
 
 class ProfilePage(QWidget):
     """User profile modification page"""
     profile_updated = pyqtSignal(User)
+    go_back_to_dashboard = pyqtSignal()  # Signal to go back to dashboard
     
     def __init__(self, user_manager: UserManager, current_user: User):
         super().__init__()
@@ -76,6 +77,29 @@ class ProfilePage(QWidget):
         self.tab_widget.addTab(self.stats_tab, "Account Statistics")
         
         layout.addWidget(self.tab_widget)
+        
+        # Back to Dashboard button
+        button_layout = QHBoxLayout()
+        self.back_button = QPushButton("🏠 Back to Dashboard")
+        self.back_button.setStyleSheet("""
+            QPushButton {
+                background-color: #95a5a6;
+                color: white;
+                border: none;
+                padding: 10px 20px;
+                border-radius: 6px;
+                font-size: 14px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #7f8c8d;
+            }
+        """)
+        self.back_button.clicked.connect(self.go_back_to_dashboard)
+        button_layout.addWidget(self.back_button)
+        button_layout.addStretch()
+        layout.addLayout(button_layout)
+        
         self.setLayout(layout)
     
     def create_personal_info_tab(self):
@@ -135,6 +159,21 @@ class ProfilePage(QWidget):
             }
         """)
         form_layout.addRow("Last Name:", self.last_name_input)
+        
+        # Username (read-only)
+        self.username_input = QLineEdit()
+        self.username_input.setReadOnly(True)
+        self.username_input.setStyleSheet("""
+            QLineEdit {
+                padding: 10px;
+                border: 2px solid #ddd;
+                border-radius: 5px;
+                font-size: 14px;
+                background-color: #ecf0f1;
+                color: #7f8c8d;
+            }
+        """)
+        form_layout.addRow("Username:", self.username_input)
         
         # Email
         self.email_input = QLineEdit()
@@ -412,6 +451,7 @@ class ProfilePage(QWidget):
         self.last_name_input.setText(self.current_user.last_name)
         self.email_input.setText(self.current_user.email)
         self.phone_input.setText(self.current_user.phone or "")
+        self.username_input.setText(self.current_user.username)
         self.username_display.setText(self.current_user.username)
         
         if self.current_user.created_at:

@@ -9,7 +9,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QFont, QPixmap, QPalette
-from ..models import UserManager, User
+from models import UserManager, User
 
 
 class LoginPage(QWidget):

@@ -2,12 +2,20 @@
 User model for Personal Budget Management System
 Handles user data structure and basic validation
 """
-from dataclasses import dataclass
-from typing import Optional
+from dataclasses import dataclass, field
+from typing import Optional, List
 import hashlib
 import json
 import os
 from datetime import datetime
+from pathlib import Path
+import sys
+
+# Add the project root to the path to import core modules
+project_root = Path(__file__).parent.parent.parent.parent
+sys.path.insert(0, str(project_root))
+
+from core.models import Transaction
 
 
 @dataclass
@@ -21,6 +29,7 @@ class User:
     phone: Optional[str] = None
     created_at: Optional[datetime] = None
     last_login: Optional[datetime] = None
+    transactions: List[Transaction] = field(default_factory=list)
     
     def __post_init__(self):
         if self.created_at is None:
@@ -38,13 +47,14 @@ class User:
             'last_name': self.last_name,
             'phone': self.phone,
             'created_at': self.created_at.isoformat() if self.created_at else None,
-            'last_login': self.last_login.isoformat() if self.last_login else None
+            'last_login': self.last_login.isoformat() if self.last_login else None,
+            'transactions': [self._transaction_to_dict(txn) for txn in self.transactions]
         }
     
     @classmethod
     def from_dict(cls, data: dict) -> 'User':
         """Create user from dictionary"""
-        return cls(
+        user = cls(
             username=data['username'],
             email=data['email'],
             password_hash=data['password_hash'],
@@ -53,6 +63,58 @@ class User:
             phone=data.get('phone'),
             created_at=datetime.fromisoformat(data['created_at']) if data.get('created_at') else None,
             last_login=datetime.fromisoformat(data['last_login']) if data.get('last_login') else None
+        )
+        
+        # Load transactions if they exist
+        if 'transactions' in data and data['transactions']:
+            user.transactions = [cls._transaction_from_dict(txn_data) for txn_data in data['transactions']]
+        
+        return user
+    
+    @staticmethod
+    def _transaction_to_dict(txn: Transaction) -> dict:
+        """Convert Transaction to dictionary for JSON storage"""
+        return {
+            'id': txn.id,
+            'date': txn.date.isoformat(),
+            'description': txn.description,
+            'amount': str(txn.amount),
+            'posted_date': txn.posted_date.isoformat() if txn.posted_date else None,
+            'description_raw': txn.description_raw,
+            'merchant': txn.merchant,
+            'currency': txn.currency,
+            'txn_type': txn.txn_type,
+            'balance': str(txn.balance) if txn.balance else None,
+            'category': txn.category,
+            'notes': txn.notes,
+            'user_override': txn.user_override,
+            'source_name': txn.source_name,
+            'source_upload_id': txn.source_upload_id,
+            'raw': txn.raw
+        }
+    
+    @staticmethod
+    def _transaction_from_dict(data: dict) -> Transaction:
+        """Create Transaction from dictionary"""
+        from decimal import Decimal
+        
+        return Transaction(
+            id=data['id'],
+            date=datetime.fromisoformat(data['date']),
+            description=data['description'],
+            amount=Decimal(data['amount']),
+            posted_date=datetime.fromisoformat(data['posted_date']) if data.get('posted_date') else None,
+            description_raw=data.get('description_raw', ''),
+            merchant=data.get('merchant', ''),
+            currency=data.get('currency', 'USD'),
+            txn_type=data.get('txn_type', ''),
+            balance=Decimal(data['balance']) if data.get('balance') else None,
+            category=data.get('category', 'Uncategorized'),
+            notes=data.get('notes', ''),
+            user_override=data.get('user_override', False),
+            source_name=data.get('source_name', ''),
+            source_upload_id=data.get('source_upload_id', ''),
+            raw=data.get('raw', {})
         )
 
 
@@ -201,3 +263,57 @@ class UserManager:
     def get_user(self, username: str) -> Optional[User]:
         """Get user by username"""
         return self._users.get(username)
+    
+    def add_transactions(self, username: str, transactions: List[Transaction]) -> tuple[bool, str]:
+        """Add transactions to a user's account"""
+        if not self.user_exists(username):
+            return False, "User not found"
+        
+        user = self._users[username]
+        user.transactions.extend(transactions)
+        self._save_users()
+        return True, f"Added {len(transactions)} transactions successfully!"
+    
+    def update_transaction(self, username: str, transaction_id: str, **kwargs) -> tuple[bool, str]:
+        """Update a specific transaction"""
+        if not self.user_exists(username):
+            return False, "User not found"
+        
+        user = self._users[username]
+        transaction = next((t for t in user.transactions if t.id == transaction_id), None)
+        
+        if not transaction:
+            return False, "Transaction not found"
+        
+        # Update allowed fields
+        if 'category' in kwargs:
+            transaction.category = kwargs['category']
+            transaction.user_override = True  # Mark as manually set
+        
+        if 'notes' in kwargs:
+            transaction.notes = kwargs['notes']
+        
+        self._save_users()
+        return True, "Transaction updated successfully!"
+    
+    def get_user_transactions(self, username: str) -> List[Transaction]:
+        """Get all transactions for a user"""
+        if not self.user_exists(username):
+            return []
+        
+        return self._users[username].transactions
+    
+    def get_spending_by_category(self, username: str) -> dict:
+        """Get spending totals by category for a user"""
+        if not self.user_exists(username):
+            return {}
+        
+        category_totals = {}
+        for txn in self._users[username].transactions:
+            if txn.amount < 0:  # Only spending (negative amounts)
+                category = txn.category
+                if category not in category_totals:
+                    category_totals[category] = 0
+                category_totals[category] += abs(txn.amount)
+        
+        return category_totals

@@ -11,6 +11,8 @@ from models import UserManager, User
 from pages.auth import AuthWidget
 from pages.profile import ProfilePage
 from pages.dashboard import DashboardPage
+from pages.transactions import TransactionsPage
+from pages.budgets import BudgetAnalysisPage
 
 
 class MainWindow(QMainWindow):
@@ -45,13 +47,17 @@ class MainWindow(QMainWindow):
         self.auth_widget.auth_successful.connect(self.handle_login_success)
         self.stacked_widget.addWidget(self.auth_widget)
         
-        # Create main application widget (placeholder for now)
+        # Create main application widget
         self.main_app_widget = QMainWindow()
         self.main_app_widget.setWindowTitle("Personal Budget Management System - Dashboard")
         self.stacked_widget.addWidget(self.main_app_widget)
         
         # Setup main app UI (will be populated after login)
         self.setup_main_app_ui()
+        
+        # Initialize page references
+        self.transactions_page = None
+        self.budget_analysis_page = None
         
         # Status bar
         self.status_bar = QStatusBar()
@@ -60,8 +66,8 @@ class MainWindow(QMainWindow):
     
     def setup_main_app_ui(self):
         """Setup the main application UI (called after login)"""
-        # Create menu bar
-        menubar = self.main_app_widget.menuBar()
+        # Create menu bar on the main window
+        menubar = self.menuBar()
         
         # File menu
         file_menu = menubar.addMenu('File')
@@ -76,6 +82,21 @@ class MainWindow(QMainWindow):
         profile_action = QAction('My Profile', self)
         profile_action.triggered.connect(self.show_profile)
         user_menu.addAction(profile_action)
+        
+        # Navigation menu
+        nav_menu = menubar.addMenu('Navigation')
+        
+        dashboard_action = QAction('Dashboard', self)
+        dashboard_action.triggered.connect(self.show_dashboard)
+        nav_menu.addAction(dashboard_action)
+        
+        transactions_action = QAction('Transactions', self)
+        transactions_action.triggered.connect(self.handle_show_transactions)
+        nav_menu.addAction(transactions_action)
+        
+        analysis_action = QAction('Budget Analysis', self)
+        analysis_action.triggered.connect(self.handle_show_spending_analysis)
+        nav_menu.addAction(analysis_action)
         
         # Help menu
         help_menu = menubar.addMenu('Help')
@@ -93,8 +114,13 @@ class MainWindow(QMainWindow):
         self.main_pages = QStackedWidget()
         self.main_app_widget.setCentralWidget(self.main_pages)
         
-        # Dashboard page (placeholder)
+        # Dashboard page
         self.dashboard_page = DashboardPage()
+        self.dashboard_page.show_spending_analysis.connect(self.handle_show_spending_analysis)
+        self.dashboard_page.show_transactions.connect(self.handle_show_transactions)
+        self.dashboard_page.show_budget_settings.connect(self.handle_show_budget_settings)
+        self.dashboard_page.show_profile.connect(self.show_profile)
+        self.dashboard_page.transactions_updated.connect(self.handle_transactions_updated)
         self.main_pages.addWidget(self.dashboard_page)
         
         # Profile page
@@ -116,6 +142,11 @@ class MainWindow(QMainWindow):
         """Handle successful login"""
         self.current_user = user
         self.show_main_app()
+        
+        # Update dashboard with current user and user manager
+        self.dashboard_page.current_user = user
+        self.dashboard_page.user_manager = self.user_manager
+        self.dashboard_page.set_current_user(user)
         
         # Show welcome message
         QMessageBox.information(
@@ -147,6 +178,7 @@ class MainWindow(QMainWindow):
         if self.profile_page is None:
             self.profile_page = ProfilePage(self.user_manager, self.current_user)
             self.profile_page.profile_updated.connect(self.handle_profile_updated)
+            self.profile_page.go_back_to_dashboard.connect(self.show_dashboard)
             self.main_pages.addWidget(self.profile_page)
         
         # Update profile page with current user data
@@ -161,6 +193,65 @@ class MainWindow(QMainWindow):
         self.current_user = updated_user
         self.setWindowTitle(f"Personal Budget Management System - Welcome, {self.current_user.first_name}")
         self.status_bar.showMessage(f"Profile updated for {self.current_user.username}")
+    
+    def handle_show_spending_analysis(self):
+        """Handle request to show spending analysis"""
+        if self.current_user is None:
+            return
+        
+        # Create budget analysis page if it doesn't exist
+        if self.budget_analysis_page is None:
+            self.budget_analysis_page = BudgetAnalysisPage(self.current_user, self.user_manager)
+            self.budget_analysis_page.go_back_to_dashboard.connect(self.show_dashboard)
+            self.main_pages.addWidget(self.budget_analysis_page)
+        
+        # Update with current user data
+        self.budget_analysis_page.user = self.current_user
+        self.budget_analysis_page.update_analysis()
+        
+        # Switch to budget analysis page
+        self.main_pages.setCurrentWidget(self.budget_analysis_page)
+    
+    def handle_show_transactions(self):
+        """Handle request to show transactions"""
+        if self.current_user is None:
+            return
+        
+        # Create transactions page if it doesn't exist
+        if self.transactions_page is None:
+            self.transactions_page = TransactionsPage(self.current_user, self.user_manager)
+            self.transactions_page.transaction_updated.connect(self.handle_transactions_updated)
+            self.transactions_page.go_back_to_dashboard.connect(self.show_dashboard)
+            self.main_pages.addWidget(self.transactions_page)
+        
+        # Update with current user data
+        self.transactions_page.user = self.current_user
+        self.transactions_page.refresh_table()
+        
+        # Switch to transactions page
+        self.main_pages.setCurrentWidget(self.transactions_page)
+    
+    def handle_show_budget_settings(self):
+        """Handle request to show budget settings"""
+        QMessageBox.information(
+            self,
+            "Budget Settings",
+            "Budget settings feature will be implemented in future sprints.\n\nThis will include:\n- Set monthly budget limits\n- Create spending categories\n- Set budget goals\n- Configure notifications"
+        )
+    
+    def handle_transactions_updated(self):
+        """Handle when transactions are updated"""
+        # Refresh dashboard stats
+        if self.dashboard_page:
+            self.dashboard_page.update_dashboard_stats()
+        
+        # Refresh budget analysis if it's currently shown
+        if self.budget_analysis_page and self.main_pages.currentWidget() == self.budget_analysis_page:
+            self.budget_analysis_page.update_analysis()
+    
+    def show_dashboard(self):
+        """Show the dashboard page"""
+        self.main_pages.setCurrentWidget(self.dashboard_page)
     
     def show_about(self):
         """Show about dialog"""
@@ -190,58 +281,6 @@ class MainWindow(QMainWindow):
             """
         )
 
-
-class DashboardPage(QMainWindow):
-    """Placeholder dashboard page"""
-    
-    def __init__(self):
-        super().__init__()
-        self.setup_ui()
-    
-    def setup_ui(self):
-        """Setup dashboard UI"""
-        from PyQt6.QtWidgets import QVBoxLayout, QLabel, QWidget
-        
-        central_widget = QWidget()
-        layout = QVBoxLayout()
-        
-        welcome_label = QLabel("Welcome to your Personal Budget Dashboard!")
-        welcome_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        welcome_label.setStyleSheet("""
-            QLabel {
-                font-size: 24px;
-                font-weight: bold;
-                color: #2c3e50;
-                padding: 50px;
-            }
-        """)
-        
-        info_label = QLabel("""
-        <h3>Dashboard Features Coming Soon:</h3>
-        <ul>
-            <li>Upload bank statements</li>
-            <li>View spending categories</li>
-            <li>Monthly spending trends</li>
-            <li>Budget goals and tracking</li>
-            <li>Transaction management</li>
-        </ul>
-        """)
-        info_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        info_label.setStyleSheet("""
-            QLabel {
-                font-size: 14px;
-                color: #7f8c8d;
-                padding: 20px;
-                background-color: #f8f9fa;
-                border-radius: 10px;
-                margin: 20px;
-            }
-        """)
-        
-        layout.addWidget(welcome_label)
-        layout.addWidget(info_label)
-        central_widget.setLayout(layout)
-        self.setCentralWidget(central_widget)
 
 
 def main():
