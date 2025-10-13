@@ -35,89 +35,113 @@
     "oasis world market",
     "py cafe", "py kung fu tea",
     "tst rnk blacksburg",
-    "re:mc ?donald'?s",
-    "re:restaurant",
-    "re:bar\\b"
+    "mc donald", "mcdonald", "mcdonalds",
+    "dominos", "pizza hut", "little caesars", "papa john", "benny marzano", "benny's", "bennys",
+    "bull and bones", "blacksburg tavern", "zeppoli's", "macados", "mike's grill", "622 north",
+    "brugh coffee", "mill mountain coffee", "starbucks", "dunkin", "mill mountain", "coffee shop",
+    "moe's southwest", "taco bell", "taco", "el rodeo", "mexican restaurant", "el gran rodeo",
+    "red robin", "longhorn steakhouse", "outback steakhouse", "olive garden", "red lobster",
+    "new river pizza", "christiansburg diner", "china inn", "panda express", "hokie house",
+    "pk's bar", "pk's", "top of the stairs", "the cellar", "abbey road pub", "gillie's",
+    "blacksburg wine lab", "bull and bones", "maroon door", "zeppolis", "joe's diner",
+    "re:restaurant", "re:bar\\b", "re:grill", "re:brew", "re:cafe", "re:tavern"
   ],
 
   "Gas": [
     "kroger fuel",
     "shell", "exxon", "bp", "chevron", "speedway",
-    "7-eleven gas", "7 eleven gas",
-    "fuel center",
-    "re:fuel\\b"
+    "7-eleven gas", "7 eleven gas", "7eleven",
+    "sheetz", "sheetz store", "pilot", "circle k", "sunoco", "marathon",
+    "valero", "citgo", "casey's", "murphy usa", "texaco",
+    "re:fuel\\b", "re:gas\\s+station"
   ],
 
   "Groceries": [
-    "kroger ", "kroger  ", "kroger #", "kroger 4 ", "kroger 2 ", "kroger 402",
-    "food lion",
-    "walmart", "wm superc", "supercenter",
-    "trader joe", "aldi",
-    "world market"
+    "kroger", "food lion", "walmart", "wm superc", "supercenter", "trader joe", "aldi",
+    "world market", "target", "sams club", "costco", "martins", "giant", "publix",
+    "pantry", "grocery", "blacksburg farmers market", "fresh market", "food city",
+    "re:grocery|market|supermarket"
   ],
 
   "Utilities": [
-    "aep appalachian", "appalachian power",
-    "atmos energy",
-    "finance dpt", "finance dpt-town", "town of blacksburg",
-    "dominion energy",
-    "verizon", "xfinity", "comcast",
-    "water bill",
-    "re:utility|utilities|electric|gas\\s+service|sewer|trash"
+    "aep appalachian", "appalachian power", "aep bill pay",
+    "electric bill", "power bill", "utility bill",
+    "finance dpt", "town of blacksburg", "dominion energy",
+    "verizon", "xfinity", "comcast", "water bill",
+    "new river valley water", "mountain view water", "montgomery county public service",
+    "re:aep|appalachian\\s+power|utility|electric|sewer|trash|water"
   ],
 
   "Transit & Parking": [
-    "parking", "park blacksburg",
-    "uber", "lyft", "metro", "toll",
-    "re:blacksburg\\s+va\\s+park"
+    "parking", "park blacksburg", "vt parking", "virginia tech parking",
+    "uber", "lyft", "metro", "toll", "radford transit", "blacksburg transit",
+    "bt transit", "bt fare", "blacksburg bus", "greyhound", "megabus",
+    "re:blacksburg\\s+va\\s+park", "re:transit", "re:bus\\b", "re:fare"
   ],
 
   "Fitness": [
-    "planet fitness",
-    "iclub fees",
-    "pf christiansbur"
+    "planet fitness", "pf christiansbur", "iclub fees", "ymca", "y.m.c.a",
+    "hokie fitness", "crunch fitness", "blacksburg gym", "vt rec sports", "vt gym",
+    "christiansburg aquatic", "crossfit blacksburg", "snap fitness", "the weight club"
   ],
 
   "Software & Online Services": [
-    "lemon squeezy", "lemonsqueezy",
-    "pebblehost",
-    "tebex",
-    "legalzoom",
-    "stripe payout", "stripe transfer"
+    "lemon squeezy", "lemonsqueezy", "pebblehost", "tebex", "legalzoom",
+    "stripe payout", "stripe transfer", "mailchimp", "salesforce", "notion",
+    "audible", "dropbox", "discord subscription", "adobe", "microsoft 365",
+    "github", "canva", "figma", "google cloud", "apple icloud", "icloud storage"
   ],
 
   "Income": [
-    "venmo cashout",
-    "cash deposit",
-    "direct deposit",
-    "payroll",
-    "refund",
-    "re:atm\\s+cash\\s+deposit",
-    "re:stripe\\s+payout"
+    "direct deposit", "payroll", "virginia tech reg salary", "salary ppd id",
+    "refund", "cash deposit", "book transfer credit", "vt payroll",
+    "vt stipend", "vt refund", "virginia tech income", "radford payroll",
+    "re:salary|deposit|stipend|refund"
   ],
 
-  "Transfers In": [
-    "recurring transfer from",
-    "transfer from"
+  "Debt Payments": [
+    "discover e-payment", "american express ach pmt", "solomon-jp975 web pmts",
+    "deel payments", "capital one", "bank of america payment", "chase card payment",
+    "credit card payment", "loan payment", "auto payment", "student loan",
+    "re:american\\s+express|discover|solomon|deel|capital\\s+one|loan|payment"
   ],
 
   "Transfers Out": [
-    "venmo payment",
-    "zelle payment",
-    "cash app"
+    "zelle payment to", "transfer to", "sent via zelle", "cash app payment",
+    "venmo payment", "payment to", "payout", "paypal payment", "apple cash",
+    "re:zelle\\s+payment\\s+to", "re:transfer\\s+to", "re:sent\\s+to"
+  ],
+
+  "Transfers In": [
+    "zelle payment from", "transfer from", "received via zelle", "book transfer credit",
+    "fedwire credit", "incoming transfer", "paypal received", "cash app received",
+    "venmo received", "deposit from", "re:zelle\\s+payment\\s+from", "re:transfer\\s+from"
+  ],
+
+  "Bank Fees": [
+    "monthly service fee", "international incoming wire fee", "domestic incoming wire fee",
+    "incoming wire fee", "service fee", "bank fee", "maintenance fee",
+    "re:wire\\s+fee|bank\\s+fee|service\\s+charge"
   ],
 
   "Cash & ATM": [
-    "atm withdrawal", "non-wf atm",
-    "atm cash deposit",
-    "cash withdrawal", "cash advance"
+    "atm withdrawal", "non-wf atm", "atm cash deposit",
+    "cash withdrawal", "cash advance", "atm fee", "atm surcharge",
+    "cash deposit", "atm deposit"
   ],
 
   "Rent": [
-    "leasing", "apartments", "property management", "rent"
+    "leasing", "apartments", "property management", "rent", "vt housing",
+    "apartment rent", "rental blacksburg", "rental christiansburg",
+    "the edge apartments", "the retreat", "smith's landing", "the row at vt",
+    "collegiate suites", "blacksburg housing", "centennial townhomes", "alight blacksburg"
   ],
 
   "Healthcare": [
-    "clinic", "hospital", "urgent care", "pharmacy", "cvs", "walgreens", "rite aid"
+    "clinic", "hospital", "urgent care", "pharmacy", "cvs", "walgreens", "rite aid",
+    "blacksburg clinic", "christiansburg hospital", "vt health", "mountain view clinic",
+    "new river valley medical", "lewisgale hospital", "carilion clinic", "carilion new river",
+    "carilion christiansburg", "urgent care blacksburg", "urgent care christiansburg",
+    "montgomery regional", "giles memorial", "medexpress"
   ]
 }
