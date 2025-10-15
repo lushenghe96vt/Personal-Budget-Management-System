@@ -1,13 +1,27 @@
 """
-Budget analysis and management page for Personal Budget Management System
-Provides spending analysis, category breakdowns, and budget insights
+budgets.py
+Personal Budget Management System - Budget Analysis Module
+Author: Ankush
+Date: 10/11/25
+
+Description:
+  Advanced budget analysis and spending insights with visual charts and statistics.
+  Provides comprehensive financial analysis across multiple time periods.
+
+Implements:
+  - Category breakdown with pie charts
+  - Spending by category analysis
+  - Monthly trends visualization
+  - Budget goals tracking
+  - Spending insights and recommendations
+  - Custom pie chart widget with perfect circular rendering
 """
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, 
     QTableWidget, QTableWidgetItem, QHeaderView, QFrame,
-    QGroupBox, QTabWidget, QScrollArea, QGridLayout
+    QGroupBox, QTabWidget, QScrollArea, QGridLayout, QSizePolicy
 )
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import Qt, pyqtSignal, QRect, QSize
 from PyQt6.QtGui import QFont, QColor, QPixmap, QPainter
 from pathlib import Path
 import sys
@@ -30,6 +44,20 @@ class SimplePieChart(QWidget):
         super().__init__(parent)
         self.data = data
         self.setMinimumSize(300, 300)
+        self.setMaximumSize(500, 500)
+        
+        # Set size policy to maintain aspect ratio
+        size_policy = QSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        size_policy.setHeightForWidth(True)
+        self.setSizePolicy(size_policy)
+    
+    def sizeHint(self):
+        """Return preferred size (square)"""
+        return QSize(400, 400)
+    
+    def heightForWidth(self, width):
+        """Maintain square aspect ratio"""
+        return width
     
     def paintEvent(self, event):
         """Draw the pie chart"""
@@ -48,8 +76,23 @@ class SimplePieChart(QWidget):
         if total == 0:
             return
         
-        # Draw pie chart
-        rect = self.rect().adjusted(20, 20, -20, -20)
+        # Get widget dimensions
+        widget_rect = self.rect()
+        widget_width = widget_rect.width()
+        widget_height = widget_rect.height()
+        
+        # Calculate the largest square that fits in the widget
+        size = min(widget_width, widget_height)
+        margin = 20
+        
+        # Center the square
+        x_offset = (widget_width - size) // 2
+        y_offset = (widget_height - size) // 2
+        
+        # Create a perfect square for the pie chart
+        pie_size = size - (margin * 2)
+        rect = QRect(x_offset + margin, y_offset + margin, pie_size, pie_size)
+        
         start_angle = 0
         
         for i, (category, value) in enumerate(self.data.items()):

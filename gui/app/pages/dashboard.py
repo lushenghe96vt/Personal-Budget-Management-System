@@ -1,6 +1,20 @@
 """
-Dashboard page for Personal Budget Management System
-Main landing page after user login
+dashboard.py
+Personal Budget Management System - Dashboard Module
+Author: Ankush
+Date: 10/11/25
+
+Description:
+  Main dashboard page displaying user statistics and quick actions.
+  Integrates backend CSV processing and categorization pipeline.
+
+Implements:
+  - Real-time transaction statistics (spending, income, budget remaining)
+  - Bank statement upload with progress tracking
+  - CSV parsing integration (Jason's fileUpload)
+  - Transaction categorization integration (Luke's categorize_edit)
+  - Recent activity display
+  - Quick action buttons for navigation
 """
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, 

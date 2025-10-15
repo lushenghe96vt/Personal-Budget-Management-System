@@ -1,6 +1,18 @@
 """
-Authentication pages for Personal Budget Management System
-Includes login and signup functionality
+auth.py
+Personal Budget Management System - Authentication Module
+Author: Ankush
+Date: 10/11/25
+
+Description:
+  Handles user authentication including login and signup functionality.
+  Provides secure user registration and login with password hashing.
+
+Implements:
+  - User login with username/password authentication
+  - New user registration with validation
+  - Password hashing using SHA-256
+  - Session management and user state
 """
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, 

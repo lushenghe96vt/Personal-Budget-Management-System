@@ -1,6 +1,20 @@
 """
-User model for Personal Budget Management System
-Handles user data structure and basic validation
+user.py
+Personal Budget Management System - User Model and Management
+Author: Ankush
+Date: 10/11/25
+
+Description:
+  User data model and manager for authentication, registration, and data persistence.
+  Handles user account creation, authentication, and transaction storage.
+
+Implements:
+  - User dataclass with transaction storage
+  - UserManager for user operations
+  - SHA-256 password hashing
+  - JSON-based data persistence
+  - Transaction management (add, update, retrieve)
+  - Spending analysis by category
 """
 from dataclasses import dataclass, field
 from typing import Optional, List

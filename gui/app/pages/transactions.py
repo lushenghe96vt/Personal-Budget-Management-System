@@ -1,6 +1,21 @@
 """
-Transaction management page for Personal Budget Management System
-Allows users to view, edit, and manage their transactions
+transactions.py
+Personal Budget Management System - Transaction Management Module
+Author: Ankush
+Date: 10/11/25
+
+Description:
+  Comprehensive transaction management interface with search, filter, and edit capabilities.
+  Displays all user transactions in a sortable table format.
+
+Implements:
+  - Transaction table with sortable columns
+  - Search and filter functionality
+  - Category editing (integrates Luke's set_category)
+  - Notes editing (integrates Luke's set_notes)
+  - Individual transaction deletion
+  - Bulk transaction clearing
+  - Transaction export functionality
 """
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, 

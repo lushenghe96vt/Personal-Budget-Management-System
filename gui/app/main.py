@@ -1,3 +1,20 @@
+"""
+main.py
+Personal Budget Management System - Main Application Entry Point
+Author: Ankush
+Date: 10/11/25
+
+Description:
+  Main application window that manages authentication, navigation, and page switching.
+  Orchestrates the entire GUI application and integrates all backend components.
+
+Implements:
+  - User authentication and session management
+  - Page navigation and menu system
+  - Integration with backend components (Jason's CSV parsing, Luke's categorization)
+  - Real-time data synchronization across pages
+"""
+
 from PyQt6.QtWidgets import QApplication, QMainWindow, QStackedWidget, QMenuBar, QStatusBar, QMessageBox
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QAction

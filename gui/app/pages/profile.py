@@ -1,6 +1,19 @@
 """
-User profile page for Personal Budget Management System
-Allows users to modify their personal information
+profile.py
+Personal Budget Management System - User Profile Module
+Author: Ankush
+Date: 10/11/25
+
+Description:
+  User profile management interface for editing personal information and account settings.
+  Provides secure password change functionality and account statistics.
+
+Implements:
+  - Personal information editing (name, email, phone)
+  - Password change with current password verification
+  - Account statistics display
+  - Profile data persistence
+  - Tabbed interface for organized settings
 """
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, 
