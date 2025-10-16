@@ -44,9 +44,9 @@ def upload_statement(filename: str, bank: Banks = Banks.WELLS_FARGO) -> list:
     Takes in a bank statement and converts it into a list of dicts (transactions)
     """
 
-    # Returns None if no filetype/filepath was specified or is invalid
+    # Returns a blank list if no filetype/filepath was specified or is invalid
     if not is_valid_file(filename):
-        return None
+        return []
     
     transaction_list = []
 
@@ -74,7 +74,7 @@ def main():
     Main to test the file functions.
     """
     absolute_path = get_filename()
-    transaction_list = upload_statement(absolute_path, Banks.CHASE)
+    transaction_list = upload_statement(absolute_path, Banks.WELLS_FARGO)
     print_statement(transaction_list)
 
 if __name__ == "__main__":
