@@ -19,6 +19,11 @@ from core.categorize_edit import (             # import core categorization/edit
     set_category,                              # manually set a category
     set_notes,                                 # manually attach a note
 )
+from core.view_spending import (
+    spending_summary,
+    show_pie,
+    show_table,
+)
 
 
 def make_sample_transactions() -> list[Transaction]:                     # create sample dataset
@@ -74,6 +79,15 @@ def main() -> None:                            # demo entry point
     set_notes(unknown, "Team lunch (manual)")                    # attach explanatory note
 
     print_table("After manual set_category + set_notes", txns)   # show final categorized table
+
+
+    list_of_percents = spending_summary(txns)   # create list for pie chart
+    for row in list_of_percents:                # display list
+        print(row)
+
+    show_pie(list_of_percents)
+
+    show_table(list_of_percents)
 
 
 if __name__ == "__main__":  # run demo when script is executed directly
