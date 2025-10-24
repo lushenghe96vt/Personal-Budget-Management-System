@@ -6,19 +6,32 @@ Description:    This file deals with exporting windows to pdf/png format. This i
 """
 
 from PyQt6.QtWidgets import QApplication, QPushButton, QLineEdit, QVBoxLayout, QWidget, QFileDialog
+from PyQt6.QtGui import QPixmap
 import sys
 
-def save_window(window: QWidget) -> None:
+def save_window_dialog(window: QWidget) -> None:
     """
-    Saves the specified QWidget.
-    The user chooses the filepath through a file dialog.
+    File save dialog that opens up a windows explorer for users to choose how to save the window
     """
-    # TODO: Possibly set up functionality to save as pdf as well?
     window_pic = window.grab()
-    save_settings, _ = QFileDialog.getSaveFileName(None, "Save File", "", "PNG Files (*.png)")
+    filename, _ = QFileDialog.getSaveFileName(None, "Save File", "", "PNG Files (*.png);;PDF Files (*.pdf)")
+    
+    if filename:    # Checks to see if user did not cancel file dialog. Then chooses the save function depending on filetype
+        if filename.lower().endswith(".png"):
+            save_window_as_png(window_pic, filename)
+        elif filename.lower().endswith(".pdf"):
+            save_window_as_pdf(window_pic, filename)
 
-    if save_settings:   # User did not cancel the file save
-        window_pic.save(save_settings)
+def save_window_as_png(window: QPixmap, filename: str) -> None:
+    """
+    Saves the specified window as a png
+    """
+    window.save(filename, "png")
+
+def save_window_as_pdf(window: QPixmap, filename: str) -> None:
+    """
+    Saves the specified window as a pdf
+    """
 
 def main():
     """
@@ -38,7 +51,7 @@ def main():
 
     save_button = QPushButton()
     save_button.setText("Save Window")
-    save_button.pressed.connect(lambda: save_window(window))
+    save_button.pressed.connect(lambda: save_window_dialog(window))
     layout.addWidget(save_button)
 
     window.setLayout(layout)
