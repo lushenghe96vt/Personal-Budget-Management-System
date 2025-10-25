@@ -4,6 +4,20 @@ core/categorize_edit.py
 Team 8 — Personal Budget Management System
   Author - Luke Graham
   Date - 10/6/25
+
+Implements:
+  - ID 7  : Auto-categorize transactions (ordered keyword/regex rules)
+  - ID 13 : Manually edit a transaction's category
+  - ID 14 : Add notes to a transaction
+  - ID 18 : Track recurring subscriptions automatically
+  - ID 20 : Detect and alert upcoming subscription renewals
+
+Notes
+-----
+* Rules are ordered: first matching category wins.
+* Patterns: plain substrings (case-insensitive) or regex (prefix "re:").
+* Descriptions are cleaned before matching to improve hit rate.
+* This module expects list[Transaction]. Convert dicts -> Transaction upstream.
 """
 
 from __future__ import annotations
