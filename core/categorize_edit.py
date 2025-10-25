@@ -4,237 +4,269 @@ core/categorize_edit.py
 Team 8 — Personal Budget Management System
   Author - Luke Graham
   Date - 10/6/25
-
-Implements:
-  - ID 7  : Auto-categorize transactions (ordered keyword/regex rules)
-  - ID 13 : Manually edit a transaction's category
-  - ID 14 : Add notes to a transaction
-
-Notes
------
-* Rules are ordered: first matching category wins.
-* Patterns: plain substrings (case-insensitive) or regex (prefix "re:").
-* Descriptions are cleaned before matching to improve hit rate.
-* This module expects list[Transaction]. Convert dicts -> Transaction upstream.
 """
 
-from __future__ import annotations  # future annotations for simpler type hints
-
-import json  # load/save JSON rules
-import re  # regex matching and cleanup
-from datetime import datetime  # parse/hold dates
-from decimal import Decimal, InvalidOperation  # money-safe numbers
-from pathlib import Path  # filesystem paths
-from typing import Dict, Iterable, List, Optional, Sequence, Tuple  # typing helpers
-
-from core.models import Transaction  # single source of truth for the model
+from __future__ import annotations
+import json, re
+from datetime import datetime
+from decimal import Decimal, InvalidOperation
+from pathlib import Path
+from typing import Dict, Iterable, List, Optional, Sequence, Tuple
+from calendar import monthrange
+from core.models import Transaction
 
 
 # -------------------- rules engine --------------------
 
-class CategoryRules:  # container for compiled category patterns
-    # JSON example:
-    # { "Groceries": ["kroger", "walmart"], "Dining": ["starbucks", "re:.*pizza.*"] }
-    def __init__(self, compiled: List[Tuple[str, List[re.Pattern]]]):  # ctor takes precompiled map
-        self._compiled = compiled  # store category -> patterns list
+class CategoryRules:
+    def __init__(self, compiled: List[Tuple[str, List[re.Pattern]]]):
+        self._compiled = compiled
 
     @classmethod
-    def from_json(cls, path: Path) -> "CategoryRules":  # build rules from a JSON file
-        data = json.loads(Path(path).read_text(encoding="utf-8"))  # read+parse json
-        if not isinstance(data, dict):  # validate top-level structure
-            raise ValueError("rules.json must be an object of {category: [patterns...]}")  # clear error
-        compiled: List[Tuple[str, List[re.Pattern]]] = []  # accumulator for compiled patterns
-        for category, patterns in data.items():  # dict keeps insertion order
-            if not isinstance(patterns, Sequence):  # each category must map to a list
-                raise ValueError(f"Category '{category}' must map to a list of patterns.")  # guard
-            bucket: List[re.Pattern] = []  # hold compiled patterns for this category
-            for p in patterns:  # iterate raw patterns
-                if not isinstance(p, str):  # pattern must be string
-                    raise ValueError(f"Pattern in '{category}' must be a string.")  # guard
-                if p.startswith("re:"):  # regex pattern path
-                    bucket.append(re.compile(p[3:], re.IGNORECASE))  # compile regex (case-insensitive)
-                else:
-                    bucket.append(re.compile(re.escape(p), re.IGNORECASE))  # compile substring match
-            compiled.append((category, bucket))  # keep pair in order
-        return cls(compiled)  # return rules instance
+    def from_json(cls, path: Path) -> "CategoryRules":
+        data = json.loads(Path(path).read_text(encoding="utf-8"))
+        if not isinstance(data, dict):
+            raise ValueError("rules.json must be an object of {category: [patterns...]}")
+        compiled: List[Tuple[str, List[re.Pattern]]] = []
+        for category, patterns in data.items():
+            if not isinstance(patterns, Sequence):
+                raise ValueError(f"Category '{category}' must map to a list of patterns.")
+            pats: List[re.Pattern] = []
+            for p in patterns:
+                if not isinstance(p, str):
+                    raise ValueError(f"Pattern in '{category}' must be a string.")
+                pats.append(
+                    re.compile(p[3:], re.I) if p.startswith("re:") else re.compile(re.escape(p), re.I)
+                )
+            compiled.append((category, pats))
+        return cls(compiled)
 
-    @classmethod
-    def from_dict(cls, data: Dict[str, List[str]]) -> "CategoryRules":  # convenience for inline dicts
-        tmp = Path("__inline_rules__.json")  # temp path for reuse of from_json
-        tmp.write_text(json.dumps(data), encoding="utf-8")  # write dict to disk
-        try:
-            return cls.from_json(tmp)  # reuse json loader
-        finally:
-            try:
-                tmp.unlink()  # clean temp file
-            except Exception:
-                pass  # ignore cleanup errors
-
-    def suggest(self, description: str) -> Optional[str]:  # pick first matching category
-        text = _prep_desc_for_rules(description)  # clean/normalize description
-        for category, patterns in self._compiled:  # iterate categories in order
-            for pat in patterns:  # try each pattern
-                if pat.search(text):  # on match
-                    return category  # return the category immediately
-        return None  # no match found
+    def suggest(self, description: str) -> Optional[str]:
+        text = _prep_desc_for_rules(description)
+        for cat, pats in self._compiled:
+            if any(p.search(text) for p in pats):
+                return cat
+        return None
 
 
-# -------------------- public api: transactions only --------------------
+# -------------------- categorization --------------------
 
-def auto_categorize(
-    transactions: Iterable[Transaction],  # list of Transaction objects
-    rules: CategoryRules,  # compiled rules to use
-    *,
-    overwrite: bool = False,  # if True, replace existing categories
-) -> None:
-    # overwrite=False: keep user_override and any non-empty category
-    for txn in transactions:  # iterate all transactions
-        if not overwrite and txn.user_override:  # respect manual override
-            continue  # skip changes
-        if not overwrite and txn.category and txn.category != "Uncategorized":  # keep existing category
-            continue  # skip changes
-        suggestion = rules.suggest(txn.description or "")  # get suggested category
-        if suggestion:  # if we have a match
-            txn.category = suggestion  # apply category
+def auto_categorize(transactions: Iterable[Transaction], rules: CategoryRules, *, overwrite=False) -> None:
+    for t in transactions:
+        if not overwrite and (t.user_override or (t.category and t.category != "Uncategorized")):
+            continue
 
+        cat = rules.suggest(t.description or "")
+        if cat:
+            t.category = cat
 
-def set_category(txn: Transaction, category: str, *, mark_override: bool = True) -> None:  # manual set
-    txn.category = (category or "").strip() or "Uncategorized"  # sanitize/assign category
-    if mark_override:  # mark as user override if requested
-        txn.user_override = True  # prevent later overwrites
+        desc_low = t.description_raw.lower()
 
+        # 🔹 Detect "recurring payment authorized on XX/XX" patterns
+        if "recurring payment" in desc_low or t.category.lower() == "subscriptions":
+            t.is_subscription = True
 
-def set_notes(txn: Transaction, notes: str) -> None:  # attach or update notes
-    txn.notes = (notes or "").strip()[:2048]  # trim and cap length
+            # Match date after "authorized on" (like "RECURRING PAYMENT AUTHORIZED ON 10/02" or "10/02/25")
+            m = re.search(
+                r"(?:recurring payment\s+authorized\s+on\s+)(\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?)",
+                t.description_raw,
+                re.IGNORECASE,
+            )
+            if m:
+                parsed = _parse_date(m.group(1))
+                if parsed:
+                    t.date = parsed
 
-
-# -------------------- adapter kept for upstream conversion --------------------
-# Use this in your ingest pipeline *before* calling auto_categorize.
-
-_DEFAULT_MAP = {  # common column name guesses from various exports
-    "id": ["Id", "ID", "TransactionId", "Ref", "Reference"],  # identifiers
-    "date": ["Date", "Transaction Date", "Posted Date", "Posting Date"],  # primary date
-    "posted_date": ["Posted Date", "Posting Date"],  # posted/settled date
-    "description": ["Description", "Memo", "Details", "Name"],  # human description
-    "amount": ["Amount", "Transaction Amount", "Value"],  # signed amount
-    "debit": ["Debit", "Withdrawal", "Outflow"],  # separate debit column
-    "credit": ["Credit", "Deposit", "Inflow"],  # separate credit column
-    "balance": ["Balance", "Running Balance"],  # running balance if present
-    "type": ["Type", "Transaction Type", "Category"],  # bank's own type/category
-    "currency": ["Currency", "CCY"],  # currency code
-}  # end map
-
-_DATE_FORMATS = [  # date formats to try when parsing
-    "%Y-%m-%d", "%m/%d/%Y", "%d/%m/%Y", "%m/%d/%y",
-    "%b %d %Y", "%d %b %Y",
-]  # common formats
+    detect_recurring_subscriptions(transactions)
+    estimate_next_due_dates(transactions)
 
 
-def dicts_to_transactions(
-    rows: Iterable[dict],  # raw rows from CSV/parser
-    *,
-    source_name: str = "unknown",  # provenance: bank/source name
-    source_upload_id: str = "",  # link to this upload
-    field_map: Dict[str, List[str]] | None = None,  # optional custom column map
-    default_currency: str = "USD",  # fallback currency
-) -> List[Transaction]:
-    # field_map lets us override/extend _DEFAULT_MAP per parser if needed
-    fmap = {**_DEFAULT_MAP, **(field_map or {})}  # merge defaults with overrides
-    out: List[Transaction] = []  # accumulator for Transactions
+def set_category(txn: Transaction, category: str, *, mark_override=True):
+    txn.category = (category or "").strip() or "Uncategorized"
+    if mark_override:
+        txn.user_override = True
 
-    for i, r in enumerate(rows, start=1):  # iterate each dict row
-        if not isinstance(r, dict):  # guard for bad input
-            continue  # skip non-dicts
 
-        rid = _pick_first(r, fmap["id"]) or f"row:{i}"  # choose id or synthesize
-        amt = _parse_amount(r, fmap)  # compute signed amount
+def set_notes(txn: Transaction, notes: str):
+    txn.notes = (notes or "").strip()[:2048]
 
-        raw_desc = _pick_first(r, fmap["description"]) or ""  # pull original description
-        norm_desc = _normalize_for_match(_strip_boilerplate(raw_desc))  # normalized form
 
-        date_str = _pick_first(r, fmap["date"]) or ""  # choose primary date field
-        date = _parse_date(date_str) or datetime.now()  # parse or fallback to now
-        posted_str = _pick_first(r, fmap["posted_date"]) or ""  # choose posted date field
-        posted = _parse_date(posted_str) if posted_str else None  # parse posted date
+# -------------------- subscription logic --------------------
 
-        bal = _parse_decimal(_pick_first(r, fmap["balance"]))  # optional running balance
-        txn_type = (_pick_first(r, fmap["type"]) or "").strip()  # bank's type/category
-        currency = (_pick_first(r, fmap["currency"]) or default_currency).strip().upper()  # currency code
+def detect_recurring_subscriptions(transactions: List[Transaction]) -> None:
+    grouped: Dict[str, List[Transaction]] = {}
+    for t in transactions:
+        key = t.description_raw.lower().strip()
+        grouped.setdefault(key, []).append(t)
 
-        txn = Transaction(  # build normalized Transaction
-            id=str(rid),  # final id string
-            date=date,  # primary date
-            posted_date=posted,  # posted/settled date if present
-            description=norm_desc or (raw_desc.strip()),  # normalized desc, fallback to raw
-            description_raw=raw_desc.strip(),  # store original description
-            amount=amt,  # signed amount
-            balance=bal,  # running balance (optional)
-            txn_type=txn_type,  # bank type/category
-            currency=currency or default_currency,  # final currency
-            category="Uncategorized",  # initial category
-            notes="",  # empty notes
-            user_override=False,  # not manually set yet
-            source_name=source_name,  # provenance: bank/source
-            source_upload_id=source_upload_id,  # provenance: upload id
-            raw=dict(r),  # keep full original row
+    for key, txns in grouped.items():
+        if len(txns) < 2:
+            continue
+        txns.sort(key=lambda x: x.date)
+        diffs = [(txns[i].date - txns[i - 1].date).days for i in range(1, len(txns))]
+        avg = sum(diffs) / len(diffs)
+        if 25 <= avg <= 33:
+            for t in txns:
+                t.is_subscription = True
+
+
+def estimate_next_due_dates(transactions: List[Transaction]) -> None:
+    """Estimate next due dates — always the same numeric day next month."""
+    grouped: Dict[str, List[Transaction]] = {}
+    for t in transactions:
+        if not getattr(t, "is_subscription", False):
+            continue
+        key = t.description_raw.lower().strip()
+        grouped.setdefault(key, []).append(t)
+
+    for desc, txns in grouped.items():
+        txns.sort(key=lambda x: x.date)
+        for t in txns:
+            t.next_due_date = _same_day_next_month(t.date)
+
+
+def _same_day_next_month(date: datetime) -> datetime:
+    """Return same day next month (2 → 2, 31 → last valid day of next month)."""
+    y, m = date.year, date.month
+    if m == 12:
+        y, m = y + 1, 1
+    else:
+        m += 1
+    max_day = monthrange(y, m)[1]
+    d = min(date.day, max_day)
+    return date.replace(year=y, month=m, day=d)
+
+
+def check_subscription_alerts(transactions: List[Transaction], days_before: int = 7) -> List[Transaction]:
+    today = datetime.now()
+    alerts = []
+    for t in transactions:
+        if not getattr(t, "is_subscription", False) or not getattr(t, "next_due_date", None):
+            continue
+        days_left = (t.next_due_date - today).days
+        if 0 < days_left <= days_before and not getattr(t, "alert_sent", False):
+            alerts.append(t)
+            t.alert_sent = True
+    return alerts
+
+
+def get_subscription_transactions(transactions: List[Transaction]) -> List[Transaction]:
+    return [t for t in transactions if getattr(t, "is_subscription", False)]
+
+
+# -------------------- transaction building --------------------
+
+_DEFAULT_MAP = {
+    "id": ["Id", "ID", "TransactionId", "Ref", "Reference"],
+    "date": ["Date", "Transaction Date", "Posted Date", "Posting Date"],
+    "posted_date": ["Posted Date", "Posting Date"],
+    "description": ["Description", "Memo", "Details", "Name"],
+    "amount": ["Amount", "Transaction Amount", "Value"],
+    "debit": ["Debit", "Withdrawal", "Outflow"],
+    "credit": ["Credit", "Deposit", "Inflow"],
+    "balance": ["Balance", "Running Balance"],
+    "type": ["Type", "Transaction Type", "Category"],
+    "currency": ["Currency", "CCY"],
+}
+
+_DATE_FORMATS = [
+    "%Y-%m-%d",     # ISO (2025-09-02)
+    "%m/%d/%Y",     # U.S.
+    "%m/%d/%y",     # U.S. short
+    "%b %d %Y",     # Sep 02 2025
+    "%d %b %Y",     # 02 Sep 2025 (fallback)
+]
+
+
+def dicts_to_transactions(rows: Iterable[dict], *, source_name="unknown", source_upload_id="", field_map=None, default_currency="USD") -> List[Transaction]:
+    fmap = {**_DEFAULT_MAP, **(field_map or {})}
+    out: List[Transaction] = []
+    for i, r in enumerate(rows, start=1):
+        if not isinstance(r, dict):
+            continue
+        rid = _pick_first(r, fmap["id"]) or f"row:{i}"
+        amt = _parse_amount(r, fmap)
+        raw_desc = _pick_first(r, fmap["description"]) or ""
+        norm_desc = _normalize_for_match(_strip_boilerplate(raw_desc))
+        date_str = _pick_first(r, fmap["date"]) or ""
+        date = _parse_date(date_str) or datetime.now()
+        posted_str = _pick_first(r, fmap["posted_date"]) or ""
+        posted = _parse_date(posted_str) if posted_str else None
+        bal = _parse_decimal(_pick_first(r, fmap["balance"]))
+        txn_type = (_pick_first(r, fmap["type"]) or "").strip()
+        currency = (_pick_first(r, fmap["currency"]) or default_currency).strip().upper()
+
+        txn = Transaction(
+            id=str(rid),
+            date=date,
+            posted_date=posted,
+            description=norm_desc or (raw_desc.strip()),
+            description_raw=raw_desc.strip(),
+            amount=amt,
+            balance=bal,
+            txn_type=txn_type,
+            currency=currency or default_currency,
+            category="Uncategorized",
+            notes="",
+            user_override=False,
+            source_name=source_name,
+            source_upload_id=source_upload_id,
+            raw=dict(r),
         )
-        out.append(txn)  # collect
-
-    return out  # list of Transactions
-
-
-def _pick_first(row: dict, candidates: List[str]) -> Optional[str]:  # pick first non-empty column
-    for c in candidates:  # iterate candidate names
-        if c in row and str(row[c]).strip():  # if present and not blank
-            return str(row[c]).strip()  # return cleaned string
-    return None  # nothing found
+        out.append(txn)
+    return out
 
 
-def _parse_amount(row: dict, fmap: Dict[str, List[str]]) -> Decimal:  # derive signed amount
-    val = _pick_first(row, fmap["amount"])  # try single Amount column first
-    if val is not None:  # if present
-        dec = _parse_decimal(val)  # convert to Decimal
-        if dec is not None:  # if valid number
-            return dec  # return as-is (already signed if export is signed)
-    debit = _pick_first(row, fmap["debit"])  # try Debit column
-    credit = _pick_first(row, fmap["credit"])  # try Credit column
-    if debit:  # debit found
-        d = _parse_decimal(debit) or Decimal("0")  # parse or zero
-        return -abs(d)  # ensure negative spend
-    if credit:  # credit found
-        c = _parse_decimal(credit) or Decimal("0")  # parse or zero
-        return abs(c)  # ensure positive income
-    return Decimal("0")  # fallback zero
+def _pick_first(row: dict, cands: List[str]) -> Optional[str]:
+    for c in cands:
+        if c in row and str(row[c]).strip():
+            return str(row[c]).strip()
+    return None
 
 
-def _parse_decimal(val: Optional[str]) -> Optional[Decimal]:  # safe decimal parser
-    if not val:  # empty guard
-        return None  # no value
-    s = val.replace(",", "").replace("$", "").strip()  # strip formatting
-    if s.startswith("(") and s.endswith(")"):  # accounting negative (parentheses)
-        s = "-" + s[1:-1]  # convert to -value
+def _parse_amount(row: dict, fmap: Dict[str, List[str]]) -> Decimal:
+    val = _pick_first(row, fmap["amount"])
+    if val is not None:
+        d = _parse_decimal(val)
+        if d is not None:
+            return d
+    debit = _pick_first(row, fmap["debit"])
+    credit = _pick_first(row, fmap["credit"])
+    if debit:
+        return -abs(_parse_decimal(debit) or Decimal("0"))
+    if credit:
+        return abs(_parse_decimal(credit) or Decimal("0"))
+    return Decimal("0")
+
+
+def _parse_decimal(v: Optional[str]) -> Optional[Decimal]:
+    if not v:
+        return None
+    s = v.replace(",", "").replace("$", "").strip()
+    if s.startswith("(") and s.endswith(")"):
+        s = "-" + s[1:-1]
     try:
-        return Decimal(s)  # build Decimal
-    except (InvalidOperation, ValueError):  # invalid number
-        return None  # signal parse failure
+        return Decimal(s)
+    except (InvalidOperation, ValueError):
+        return None
 
 
-def _parse_date(s: str) -> Optional[datetime]:  # try multiple date formats
-    s = (s or "").strip()  # clean input
-    for fmt in _DATE_FORMATS:  # iterate known formats
+def _parse_date(s: str) -> Optional[datetime]:
+    s = (s or "").strip()
+    for f in _DATE_FORMATS:
         try:
-            return datetime.strptime(s, fmt)  # parse with format
+            return datetime.strptime(s, f)
         except ValueError:
-            continue  # try next format
+            continue
     try:
-        return datetime.fromisoformat(s)  # last resort ISO-ish
+        return datetime.fromisoformat(s)
     except Exception:
-        return None  # give up
+        return None
 
 
 # -------------------- description cleaning --------------------
 
-_BOILER_FRAGMENTS = [  # noisy phrases to strip before matching
+_BOILER_FRAGMENTS = [
     "purchase authorized", "purchase auth", "pos purchase",
     "debit card purchase", "debit purchase", "card purchase",
     "signature purchase", "contactless",
@@ -243,50 +275,51 @@ _BOILER_FRAGMENTS = [  # noisy phrases to strip before matching
     "atm withdrawal", "non-wf atm", "withdrawal authorized",
     "online transfer", "internal transfer",
     "posted on", "post date",
-]  # end list
-
-_DATE_RE    = re.compile(r"\b\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?\b", re.IGNORECASE)  # dates like 09/15/2025
-_CARD_RE    = re.compile(r"\b(?:card|debit)\s*\d{2,6}\b", re.IGNORECASE)  # card tails like "card 6627"
-_NUMBLOB_RE = re.compile(r"\b\d{6,}\b")  # long numeric blobs (auth/trace)
-_SUFFIX_RE  = re.compile(r"\b(llc|inc|co|corp|ltd|llp|plc)\b", re.IGNORECASE)  # company suffixes
-_SPACE_RE   = re.compile(r"\s+")  # whitespace collapsing
-_PUNCT_RE   = re.compile(r"[^a-z0-9\s&'-]+")  # remove most punctuation
-
-def _strip_boilerplate(desc: str) -> str:  # remove bank noise before normalize
-    s = desc.lower()  # lowercase first
-    for frag in _BOILER_FRAGMENTS:  # remove known boilerplate fragments
-        s = s.replace(frag, " ")  # replace with space
-    s = _DATE_RE.sub(" ", s)  # drop date tokens
-    s = _CARD_RE.sub(" ", s)  # drop card tails
-    s = _NUMBLOB_RE.sub(" ", s)  # drop long numbers
-    return s  # partially cleaned string
-
-def _normalize_for_match(s: str) -> str:  # normalize for stable matching
-    s2 = s.lower()  # lower for case-insensitivity
-    s2 = _PUNCT_RE.sub(" ", s2)  # remove punctuation except & ' -
-    s2 = _SUFFIX_RE.sub(" ", s2)  # remove company suffixes
-    s2 = _SPACE_RE.sub(" ", s2).strip()  # collapse spaces
-    return s2  # final normalized text
-
-def _prep_desc_for_rules(raw_desc: str) -> str:  # full cleaning pipeline
-    return _normalize_for_match(_strip_boilerplate(raw_desc or ""))  # strip then normalize
+]
+_DATE_RE = re.compile(r"\b\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?\b", re.I)
+_CARD_RE = re.compile(r"\b(?:card|debit)\s*\d{2,6}\b", re.I)
+_NUMBLOB_RE = re.compile(r"\b\d{6,}\b")
+_SUFFIX_RE = re.compile(r"\b(llc|inc|co|corp|ltd|llp|plc)\b", re.I)
+_SPACE_RE = re.compile(r"\s+")
+_PUNCT_RE = re.compile(r"[^a-z0-9\s&'-]+")
 
 
-# -------------------- tiny CLI --------------------
-
-def _cli(argv: List[str]) -> int:  # small CLI to test a single description
-    import argparse  # local import to keep top clean
-    p = argparse.ArgumentParser(description="Suggest a category for a description using rules.json")  # parser
-    p.add_argument("rules", type=Path, help="Path to rules.json")  # rules file path
-    p.add_argument("--desc", required=True, help="Transaction description to test")  # description arg
-    args = p.parse_args(argv)  # parse args
-
-    rules = CategoryRules.from_json(args.rules)  # load rules
-    cat = rules.suggest(args.desc)  # get category suggestion
-    print(cat or "Uncategorized")  # output result
-    return 0  # success code
+def _strip_boilerplate(d: str) -> str:
+    s = d.lower()
+    for frag in _BOILER_FRAGMENTS:
+        s = s.replace(frag, " ")
+    s = _DATE_RE.sub(" ", s)
+    s = _CARD_RE.sub(" ", s)
+    s = _NUMBLOB_RE.sub(" ", s)
+    return s
 
 
-if __name__ == "__main__":  # run as script
-    import sys as _sys  # alias sys
-    raise SystemExit(_cli(_sys.argv[1:]))  # exit with CLI status
+def _normalize_for_match(s: str) -> str:
+    s = s.lower()
+    s = _PUNCT_RE.sub(" ", s)
+    s = _SUFFIX_RE.sub(" ", s)
+    s = _SPACE_RE.sub(" ", s).strip()
+    return s
+
+
+def _prep_desc_for_rules(d: str) -> str:
+    return _normalize_for_match(_strip_boilerplate(d or ""))
+
+
+# -------------------- CLI --------------------
+
+def _cli(argv: List[str]) -> int:
+    import argparse
+    p = argparse.ArgumentParser(description="Suggest a category for a description using rules.json")
+    p.add_argument("rules", type=Path)
+    p.add_argument("--desc", required=True)
+    args = p.parse_args(argv)
+    rules = CategoryRules.from_json(args.rules)
+    cat = rules.suggest(args.desc)
+    print(cat or "Uncategorized")
+    return 0
+
+
+if __name__ == "__main__":
+    import sys
+    raise SystemExit(_cli(sys.argv[1:]))
