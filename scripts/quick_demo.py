@@ -23,6 +23,7 @@ from core.view_spending import (
     spending_summary,
     show_pie,
     show_table,
+    income_summary
 )
 
 
@@ -81,13 +82,19 @@ def main() -> None:                            # demo entry point
     print_table("After manual set_category + set_notes", txns)   # show final categorized table
 
 
-    list_of_percents = spending_summary(txns)   # create list for pie chart
-    for row in list_of_percents:                # display list
+    list_of_percents = spending_summary(txns)   # display spending summary via pie and table
+    for row in list_of_percents:
         print(row)
-
     show_pie(list_of_percents)
-
     show_table(list_of_percents)
+
+    spending_vs_income = income_summary(txns)
+
+    for row in spending_vs_income:               # display spending vs. income
+        print(row)
+    show_pie(spending_vs_income)
+    show_table(spending_vs_income)
+
 
 
 if __name__ == "__main__":  # run demo when script is executed directly
