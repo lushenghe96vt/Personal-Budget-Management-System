@@ -102,6 +102,7 @@ class User:
             'category': txn.category,
             'notes': txn.notes,
             'user_override': txn.user_override,
+            'statement_month': txn.statement_month,
             'source_name': txn.source_name,
             'source_upload_id': txn.source_upload_id,
             'raw': txn.raw
@@ -126,6 +127,7 @@ class User:
             category=data.get('category', 'Uncategorized'),
             notes=data.get('notes', ''),
             user_override=data.get('user_override', False),
+            statement_month=data.get('statement_month', ''),
             source_name=data.get('source_name', ''),
             source_upload_id=data.get('source_upload_id', ''),
             raw=data.get('raw', {})

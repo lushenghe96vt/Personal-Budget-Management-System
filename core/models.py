@@ -35,6 +35,7 @@ class Transaction:
     category: str = "Uncategorized"          # set by rules or user
     notes: str = ""                          # user notes
     user_override: bool = False              # if True, don't overwrite category
+    statement_month: str = ""                 # user-friendly label like "January 2025", "Month 1", etc.
 
     # provenance/debug
     source_name: str = ""                    # e.g., "wells-fargo"

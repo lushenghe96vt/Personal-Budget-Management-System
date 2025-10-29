@@ -351,20 +351,21 @@ class TransactionsPage(QWidget):
         
         # Transactions table
         self.table = QTableWidget()
-        self.table.setColumnCount(7)
+        self.table.setColumnCount(8)
         self.table.setHorizontalHeaderLabels([
-            "Date", "Description", "Amount", "Category", "Notes", "Source", "Actions"
+            "Date", "Statement", "Description", "Amount", "Category", "Notes", "Source", "Actions"
         ])
         
         # Configure table
         header = self.table.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)  # Date
-        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)  # Description
-        header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)  # Amount
-        header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)  # Category
-        header.setSectionResizeMode(4, QHeaderView.ResizeMode.Stretch)  # Notes
-        header.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)  # Source
-        header.setSectionResizeMode(6, QHeaderView.ResizeMode.ResizeToContents)  # Actions
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)  # Statement
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)  # Description
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)  # Amount
+        header.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)  # Category
+        header.setSectionResizeMode(5, QHeaderView.ResizeMode.Stretch)  # Notes
+        header.setSectionResizeMode(6, QHeaderView.ResizeMode.ResizeToContents)  # Source
+        header.setSectionResizeMode(7, QHeaderView.ResizeMode.ResizeToContents)  # Actions
         
         self.table.setAlternatingRowColors(True)
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
@@ -501,31 +502,35 @@ class TransactionsPage(QWidget):
             date_item = QTableWidgetItem(txn.date.strftime("%Y-%m-%d"))
             self.table.setItem(row, 0, date_item)
             
+            # Statement Month
+            statement_item = QTableWidgetItem(txn.statement_month or "")
+            self.table.setItem(row, 1, statement_item)
+            
             # Description
             desc_item = QTableWidgetItem(txn.description)
             desc_item.setToolTip(txn.description_raw)  # Show raw description on hover
-            self.table.setItem(row, 1, desc_item)
+            self.table.setItem(row, 2, desc_item)
             
             # Amount
             amount_color = QColor("#e74c3c") if txn.amount < 0 else QColor("#27ae60")
             amount_sign = "-" if txn.amount < 0 else "+"
             amount_item = QTableWidgetItem(f"{amount_sign}${abs(txn.amount):.2f}")
             amount_item.setForeground(amount_color)
-            self.table.setItem(row, 2, amount_item)
+            self.table.setItem(row, 3, amount_item)
             
             # Category
             category_item = QTableWidgetItem(txn.category)
             if txn.user_override:
                 category_item.setBackground(QColor("#fff3cd"))  # Light yellow for manual overrides
-            self.table.setItem(row, 3, category_item)
+            self.table.setItem(row, 4, category_item)
             
             # Notes
             notes_item = QTableWidgetItem(txn.notes)
-            self.table.setItem(row, 4, notes_item)
+            self.table.setItem(row, 5, notes_item)
             
             # Source
             source_item = QTableWidgetItem(txn.source_name or "Unknown")
-            self.table.setItem(row, 5, source_item)
+            self.table.setItem(row, 6, source_item)
             
             # Actions
             actions_widget = QWidget()
@@ -568,7 +573,7 @@ class TransactionsPage(QWidget):
             actions_layout.addWidget(delete_button)
             
             actions_widget.setLayout(actions_layout)
-            self.table.setCellWidget(row, 6, actions_widget)
+            self.table.setCellWidget(row, 7, actions_widget)
     
     def filter_transactions(self):
         """Filter transactions based on search and category"""
@@ -580,14 +585,15 @@ class TransactionsPage(QWidget):
             
             # Search filter
             if search_text:
-                desc = self.table.item(row, 1).text().lower()
-                notes = self.table.item(row, 4).text().lower()
-                if search_text not in desc and search_text not in notes:
+                statement = self.table.item(row, 1).text().lower() if self.table.item(row, 1) else ""
+                desc = self.table.item(row, 2).text().lower()
+                notes = self.table.item(row, 5).text().lower() if self.table.item(row, 5) else ""
+                if search_text not in desc and search_text not in notes and search_text not in statement:
                     should_show = False
             
             # Category filter
             if category_filter != "All Categories":
-                category = self.table.item(row, 3).text()
+                category = self.table.item(row, 4).text()
                 if category != category_filter:
                     should_show = False
             

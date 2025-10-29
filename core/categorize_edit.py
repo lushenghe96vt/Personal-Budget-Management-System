@@ -135,6 +135,7 @@ def dicts_to_transactions(
     *,
     source_name: str = "unknown",  # provenance: bank/source name
     source_upload_id: str = "",  # link to this upload
+    statement_month: str = "",  # user-friendly statement label
     field_map: Dict[str, List[str]] | None = None,  # optional custom column map
     default_currency: str = "USD",  # fallback currency
 ) -> List[Transaction]:
@@ -174,6 +175,7 @@ def dicts_to_transactions(
             category="Uncategorized",  # initial category
             notes="",  # empty notes
             user_override=False,  # not manually set yet
+            statement_month=statement_month,  # user label for statement period
             source_name=source_name,  # provenance: bank/source
             source_upload_id=source_upload_id,  # provenance: upload id
             raw=dict(r),  # keep full original row

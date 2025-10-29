@@ -424,6 +424,19 @@ class DashboardPage(QWidget):
             QMessageBox.warning(self, "Error", "User not logged in")
             return
         
+        # Get statement month label from user
+        from PyQt6.QtWidgets import QInputDialog
+        statement_month, ok = QInputDialog.getText(
+            self, 
+            "Statement Month", 
+            "Enter a label for this statement period\n(e.g., 'January 2025', 'Month 1', 'Q1 2025', etc.):"
+        )
+        
+        if not ok or not statement_month.strip():
+            return
+        
+        statement_month = statement_month.strip()
+        
         # Open file dialog
         file_path, _ = QFileDialog.getOpenFileName(
             self, 
@@ -443,7 +456,11 @@ class DashboardPage(QWidget):
             
             # Step 1: Parse CSV using Jason's upload_statement function
             progress.setLabelText("Reading CSV file...")
+            progress.setValue(10)
+            
+            print(f"Attempting to process file: {file_path}")
             rows = upload_statement(file_path)
+            print(f"CSV processing completed. Found {len(rows) if rows else 0} rows")
             
             if not rows:
                 progress.close()
@@ -455,7 +472,8 @@ class DashboardPage(QWidget):
             transactions = dicts_to_transactions(
                 rows,
                 source_name="user-upload",
-                source_upload_id=f"upload-{datetime.now().isoformat(timespec='seconds')}"
+                source_upload_id=f"upload-{datetime.now().isoformat(timespec='seconds')}",
+                statement_month=statement_month
             )
             
             # Step 3: Load categorization rules
