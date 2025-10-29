@@ -37,6 +37,13 @@ class Transaction:
     user_override: bool = False              # if True, don't overwrite category
     statement_month: str = ""                 # user-friendly label like "January 2025", "Month 1", etc.
 
+    # subscription-related fields
+    is_subscription: bool = False            # whether this txn is a recurring subscription
+    next_due_date: Optional[datetime] = None # next estimated payment date
+    renewal_interval_type: str = "monthly"   # 'monthly', 'custom_days', or 'annual'
+    custom_interval_days: int = 30           # days if custom interval chosen
+    alert_sent: bool = False                 # track if alert has been sent
+
     # provenance/debug
     source_name: str = ""                    # e.g., "wells-fargo"
     source_upload_id: str = ""               # link back to upload
