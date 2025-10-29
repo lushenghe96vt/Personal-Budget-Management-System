@@ -40,22 +40,6 @@ gui/
 └── README.md            # This file
 ```
 
-## Installation and Setup
-
-1. **Install Dependencies**:
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-2. **Run the Application**:
-   ```bash
-   python -m app
-   ```
-   or
-   ```bash
-   python app/main.py
-   ```
-
 ## Usage
 
 ### First Time Setup
@@ -86,14 +70,6 @@ gui/
 - User data is stored locally in JSON format in the `data/` directory
 - Passwords are securely hashed using SHA-256
 - No sensitive data is stored in plain text
-
-## Team Information
-
-**Team 8: Personal Budget Management System**
-- **Jason Huang** (Scrum Master)
-- **Sheng Lu**
-- **Ankush Chaudhary**
-- **Luke Graham**
 
 ## Future Features (Coming in Next Sprints)
 

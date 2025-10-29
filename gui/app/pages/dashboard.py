@@ -33,7 +33,7 @@ project_root = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(project_root))
 
 from core.categorize_edit import dicts_to_transactions, auto_categorize, CategoryRules
-from fileUpload.fileUpload import upload_statement
+from core.fileUpload import upload_statement
 from models import User
 
 

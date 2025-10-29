@@ -18,7 +18,7 @@ from core.categorize_edit import (          # import main categorization pipelin
     auto_categorize,                        # categorize transactions
 )
 from core.models import Transaction         # unified Transaction model
-from fileUpload.fileUpload import get_filename, upload_statement  # file selection + CSV reader
+from core.fileUpload import get_filename, upload_statement  # file selection + CSV reader
 
 # resolve project root two levels up (../)
 PROJECT_ROOT = Path(__file__).resolve().parent.parent  # locate project root

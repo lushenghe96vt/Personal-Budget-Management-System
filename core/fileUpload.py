@@ -1,6 +1,6 @@
 """
 Filename:       fileUpload.py
-Version:        1.1
+Version:        1.2
 Authors:        Jason Huang, ECE4574_F25_Team8
 Description:    This file deals with uploading cvs bank statements to python data structures.
 """
@@ -22,9 +22,9 @@ except ImportError:
         QApplication = None
 
 class Banks(Enum):
-    # TODO: Add more bank types if needed
     WELLS_FARGO = 1
     CHASE       = 2
+    TRUIST      = 3
 
 def get_filename() -> str:
     """
@@ -32,7 +32,7 @@ def get_filename() -> str:
     Does not check for invalid filetypes.
     """
     if HAS_TKINTER:
-        filename = filedialog.askopenfilename()
+        filename = filedialog.askopenfilename(filetypes=[("CSV Files", "*.csv"), ("All Files", "*")])
     else:
         # Fallback to PyQt6 - don't create new app instance if one exists
         filename, _ = QFileDialog.getOpenFileName(
@@ -48,14 +48,10 @@ def get_filename() -> str:
 def is_valid_file(filename: str) -> bool:
     """
     Determines if the filename/path is valid
-    Gives a terminal error message and returns None on invalid filetypes/filepaths
+    Gives a terminal error message and returns False if no file was chosen
     """
     if filename == "":
         print("No valid filetype or filepath specified.")
-        return False
-    
-    if not filename.lower().endswith(".csv"):
-        print("Incorrect filetype specified.")
         return False
     
     return True
@@ -66,10 +62,10 @@ def upload_statement(filename: str, bank: Banks = Banks.WELLS_FARGO) -> list:
     """
     print(f"upload_statement called with filename: {filename}, bank: {bank}")
 
-    # Returns None if no filetype/filepath was specified or is invalid
+    # Returns a blank list if no filetype/filepath was specified or is invalid
     if not is_valid_file(filename):
         print("File validation failed")
-        return None
+        return []
     
     print("File validation passed, starting to read CSV...")
     transaction_list = []
@@ -78,16 +74,15 @@ def upload_statement(filename: str, bank: Banks = Banks.WELLS_FARGO) -> list:
         with open(filename, "r") as csv_file:
             print(f"File opened successfully, bank type: {bank}")
             if bank == Banks.WELLS_FARGO:
-                WF_cols = ["Date", "Amount", "[FILLER1]", "[FILLER2]", "Description"] # CSV format for Wells Fargo bank statements
+                WF_cols = ["Date", "Amount", "[FILLER1]", "[FILLER2]", "Description"]  # CSV format for Wells Fargo bank statements
                 print("Processing Wells Fargo format...")
-                for i, transaction in enumerate(csv.DictReader(csv_file, fieldnames = WF_cols)):
+                for i, transaction in enumerate(csv.DictReader(csv_file, fieldnames=WF_cols)):
                     transaction_list.append(transaction)
                     if i % 100 == 0:  # Print progress every 100 rows
                         print(f"Processed {i} rows...")
-            
-            elif bank == Banks.CHASE:
-                print("Processing Chase format...")
-                for i, transaction in enumerate(csv.DictReader(csv_file)): # Chase CSV Statements already provide column headers
+            elif bank == Banks.CHASE or bank == Banks.TRUIST:
+                print("Processing Chase/Truist format...")
+                for i, transaction in enumerate(csv.DictReader(csv_file)):
                     transaction_list.append(transaction)
                     if i % 100 == 0:  # Print progress every 100 rows
                         print(f"Processed {i} rows...")
@@ -95,7 +90,7 @@ def upload_statement(filename: str, bank: Banks = Banks.WELLS_FARGO) -> list:
         print(f"CSV processing completed. Total rows: {len(transaction_list)}")
     except Exception as e:
         print(f"Error reading CSV file: {e}")
-        return None
+        return []
 
     return transaction_list
 
@@ -110,8 +105,18 @@ def main():
     """
     Main to test the file functions.
     """
+    bank_Type = input("Enter your bank type (WF, Chase, Truist): ").lower()
+    if bank_Type == "wf":
+        bank_Type = Banks.WELLS_FARGO
+    elif bank_Type == "chase":
+        bank_Type = Banks.CHASE
+    elif bank_Type == "truist":
+        bank_Type = Banks.TRUIST
+    else:
+        return  # No valid bank type specified
+    # NOTE: There's some issue with the file explorer window opening in the background in some cases.
     absolute_path = get_filename()
-    transaction_list = upload_statement(absolute_path, Banks.CHASE)
+    transaction_list = upload_statement(absolute_path, bank_Type)
     print_statement(transaction_list)
 
 if __name__ == "__main__":
