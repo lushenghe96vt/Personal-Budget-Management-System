@@ -12,11 +12,12 @@
 # - call show_pie(spendnig_summary()) or show_table(spending_summary) to display the data in pie chart or table format respectively.
 # - call income_summary() to generate a list of dictionaries containing the total spendings vs. total income. Income and spending is 
 #   returned as a categroy so show_pie and show_table can be used to display it.
+# - call forecast_spenging() to generate a list of dictionaries containing each past month's total spending and a forecast for next month as the last entry
 
 # Notes:
 # - show_pie and show_table subject to change when finally integrated with rest of GUI
 # - For forecast_spending(), we should probably add a panel somewhere to notify how many previous statements are needed before a forecast is made
-#   also we could switch algorithm to linear regression
+#   also we could switch algorithm to linear regression?
 #
 # ===============================================================
 
@@ -241,7 +242,8 @@ def income_summary(transactions) -> list[dict]:
 #
 # Returns:
 # list of dictionary containing each past month's total spending 
-# and a forecast for next month for plotting.
+# and a forecast for next month as the last entry. Example entry:
+# {"month": "YYYY-MM", "spending": Decimal()}
 # ===============================================================
 
 def forecast_spending(transactions) -> list[dict]:
