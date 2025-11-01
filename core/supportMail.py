@@ -11,6 +11,7 @@ import smtplib
 import os
 from dotenv import load_dotenv
 
+# Address and password stored in an environment file not on the repo
 load_dotenv()
 
 SMTP_SERVER = "smtp.gmail.com"
@@ -18,7 +19,7 @@ SMTP_PORT = 587
 EMAIL_ADDRESS = os.getenv("EMAIL_ADDRESS")
 EMAIL_PASS = os.getenv("EMAIL_PASS")
 
-def send_sup_msg(user_email: str, user_msg: str):
+def send_sup_email(user_email: str, user_msg: str):
     """
     This function allows users to send an email to the developers for changes.
     The function essentially just sends an email from the developer email 
@@ -40,7 +41,7 @@ def send_sup_msg(user_email: str, user_msg: str):
 
 def main():
     """Demos the support mail functionality"""
-    send_sup_msg("Testemail@mail.com", "This is a test message")
+    send_sup_email("Testemail@mail.com", "This is a test message")
 
 
 if __name__ == "__main__":
