@@ -28,7 +28,7 @@ from pathlib import Path  # manage file paths
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple  # type hints
 
 from core.models import Transaction  # import Transaction model class
-from fileUpload.fileUpload import Banks  # import bank enum (CHASE, WELLS_FARGO)
+from core.fileUpload import Banks  # import bank enum (CHASE, WELLS_FARGO)
 
 
 # -------------------- rules engine --------------------

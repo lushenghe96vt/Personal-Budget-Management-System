@@ -17,7 +17,7 @@ Implements:
   - Spending analysis by category
 """
 from dataclasses import dataclass, field
-from typing import Optional, List
+from typing import Optional, List, Dict
 import hashlib
 import json
 import os
@@ -44,6 +44,11 @@ class User:
     created_at: Optional[datetime] = None
     last_login: Optional[datetime] = None
     transactions: List[Transaction] = field(default_factory=list)
+    # Budget/goal fields
+    monthly_spending_limit: Optional[float] = None  # overall cap for monthly spend
+    monthly_savings_goal: Optional[float] = None    # target savings per month
+    per_category_limits: Dict[str, float] = field(default_factory=dict)  # optional caps
+    goal_streak_count: int = 0  # number of consecutive months meeting savings goal
     
     def __post_init__(self):
         if self.created_at is None:
@@ -62,7 +67,11 @@ class User:
             'phone': self.phone,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'last_login': self.last_login.isoformat() if self.last_login else None,
-            'transactions': [self._transaction_to_dict(txn) for txn in self.transactions]
+            'transactions': [self._transaction_to_dict(txn) for txn in self.transactions],
+            'monthly_spending_limit': self.monthly_spending_limit,
+            'monthly_savings_goal': self.monthly_savings_goal,
+            'per_category_limits': self.per_category_limits,
+            'goal_streak_count': self.goal_streak_count,
         }
     
     @classmethod
@@ -76,7 +85,11 @@ class User:
             last_name=data['last_name'],
             phone=data.get('phone'),
             created_at=datetime.fromisoformat(data['created_at']) if data.get('created_at') else None,
-            last_login=datetime.fromisoformat(data['last_login']) if data.get('last_login') else None
+            last_login=datetime.fromisoformat(data['last_login']) if data.get('last_login') else None,
+            monthly_spending_limit=data.get('monthly_spending_limit'),
+            monthly_savings_goal=data.get('monthly_savings_goal'),
+            per_category_limits=data.get('per_category_limits', {}),
+            goal_streak_count=int(data.get('goal_streak_count', 0)),
         )
         
         # Load transactions if they exist
@@ -287,8 +300,61 @@ class UserManager:
         
         user = self._users[username]
         user.transactions.extend(transactions)
+        # Normalize statement months by upload grouping
+        self._normalize_statement_months(username)
         self._save_users()
         return True, f"Added {len(transactions)} transactions successfully!"
+
+    def _normalize_statement_months(self, username: str) -> None:
+        """Assign 'Month N' per upload group based on earliest date of each upload.
+        Groups transactions by source_upload_id and sorts chronologically by earliest date.
+        This ensures Month 1, Month 2, etc. are assigned in chronological order of uploads.
+        """
+        if not self.user_exists(username):
+            return
+        user = self._users[username]
+        from collections import defaultdict
+        group_dates = defaultdict(list)
+        
+        # Group transactions by upload_id (each upload gets unique ID)
+        for t in user.transactions:
+            key = t.source_upload_id or ""
+            if key:
+                group_dates[key].append(t.date)
+            else:
+                # For transactions without upload_id, use their date as a fallback key
+                # This handles legacy transactions that were uploaded before upload_id was implemented
+                date_key = t.date.strftime("%Y-%m")
+                group_dates[f"date_{date_key}"].append(t.date)
+        
+        # Build sorted groups by earliest date in each group
+        ordering = []
+        for key, dates in group_dates.items():
+            if dates:
+                earliest = min(dates)
+                ordering.append((earliest, key))
+        
+        if not ordering:
+            return
+        
+        # Sort by earliest date chronologically
+        ordering.sort()
+        
+        # Create label map: Month 1, Month 2, etc. in chronological order
+        label_map = {key: f"Month {i+1}" for i, (_, key) in enumerate(ordering)}
+        
+        # Apply labels to all transactions
+        for t in user.transactions:
+            key = t.source_upload_id or ""
+            if key and key in label_map:
+                # Has upload_id and is in our map
+                t.statement_month = label_map[key]
+            elif not key:
+                # No upload_id, use date-based grouping
+                date_key = t.date.strftime("%Y-%m")
+                fallback_key = f"date_{date_key}"
+                if fallback_key in label_map:
+                    t.statement_month = label_map[fallback_key]
     
     def update_transaction(self, username: str, transaction_id: str, **kwargs) -> tuple[bool, str]:
         """Update a specific transaction"""
@@ -318,6 +384,61 @@ class UserManager:
             return []
         
         return self._users[username].transactions
+
+    def recompute_goal_streak(self, username: str) -> int:
+        """Compute consecutive month savings-goal streak up to current month.
+        A month counts if (income - spending) >= monthly_savings_goal (if set).
+        """
+        if not self.user_exists(username):
+            return 0
+        user = self._users[username]
+        if not user.monthly_savings_goal or user.monthly_savings_goal <= 0:
+            user.goal_streak_count = 0
+            self._save_users()
+            return 0
+
+        # aggregate per YYYY-MM
+        from collections import defaultdict
+        months = defaultdict(lambda: {"income": 0.0, "spend": 0.0})
+        for t in user.transactions:
+            key = t.date.strftime("%Y-%m")
+            if t.amount > 0:
+                months[key]["income"] += float(t.amount)
+            else:
+                months[key]["spend"] += float(abs(t.amount))
+
+        if not months:
+            user.goal_streak_count = 0
+            self._save_users()
+            return 0
+
+        # iterate from latest month backwards
+        ordered = sorted(months.items())
+        streak = 0
+        goal = float(user.monthly_savings_goal)
+        # ensure continuity: only count consecutive from latest
+        from datetime import datetime as _dt
+        latest_key = ordered[-1][0]
+        year, month = map(int, latest_key.split("-"))
+        def prev(y, m):
+            return (y - 1, 12) if m == 1 else (y, m - 1)
+
+        lookup = {k: v for k, v in ordered}
+        y, m = year, month
+        while True:
+            key = f"{y:04d}-{m:02d}"
+            if key not in lookup:
+                break
+            net = lookup[key]["income"] - lookup[key]["spend"]
+            if net >= goal:
+                streak += 1
+                y, m = prev(y, m)
+                continue
+            break
+
+        user.goal_streak_count = streak
+        self._save_users()
+        return streak
     
     def get_spending_by_category(self, username: str) -> dict:
         """Get spending totals by category for a user"""
