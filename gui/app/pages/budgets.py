@@ -1064,12 +1064,37 @@ class BudgetAnalysisPage(QWidget):
         now = _dt.now()
         
         # Determine period text based on filter selection or transactions
+        # Initialize target_year and target_month to None
+        target_year = None
+        target_month = None
+        
         if hasattr(self, 'goals_month_filter') and self.goals_month_filter.currentText():
             filter_text = self.goals_month_filter.currentText()
             if filter_text == "All Time":
                 period_text = "Showing data for: All Time (Cumulative)"
+                # For "All Time", use most recent transaction date
+                if transactions:
+                    most_recent_date = max(t.date for t in transactions)
+                    target_year = most_recent_date.year
+                    target_month = most_recent_date.month
             else:
                 period_text = f"Showing data for: {filter_text}"
+                # Extract year and month from filter
+                if hasattr(self, '_month_filter_options') and filter_text in self._month_filter_options:
+                    filter_info = self._month_filter_options[filter_text]
+                    if filter_info:
+                        filter_type, filter_value = filter_info
+                        if filter_type == "date":
+                            # Filter value is "YYYY-MM"
+                            target_year, target_month = map(int, filter_value.split("-"))
+                        elif filter_type == "statement":
+                            # For statement-based filters, find the date from transactions
+                            if transactions:
+                                statement_transactions = [t for t in transactions if t.statement_month == filter_value]
+                                if statement_transactions:
+                                    most_recent_date = max(t.date for t in statement_transactions)
+                                    target_year = most_recent_date.year
+                                    target_month = most_recent_date.month
         else:
             # Fallback: Find the most recent statement_month or date
             latest_statement_month = None
@@ -1179,12 +1204,15 @@ class BudgetAnalysisPage(QWidget):
         # compute spend per category for target month (case-insensitive matching)
         cat_spend = defaultdict(float)
         cat_spend_lower = {}  # map lowercase category -> original category
-        for t in transactions:
-            if t.amount < 0 and t.date.year == target_year and t.date.month == target_month:
-                cat_lower = t.category.lower()
-                cat_spend[cat_lower] += float(abs(t.amount))
-                if cat_lower not in cat_spend_lower:
-                    cat_spend_lower[cat_lower] = t.category
+        
+        # Only process if target_year and target_month are set
+        if target_year is not None and target_month is not None:
+            for t in transactions:
+                if t.amount < 0 and t.date.year == target_year and t.date.month == target_month:
+                    cat_lower = t.category.lower()
+                    cat_spend[cat_lower] += float(abs(t.amount))
+                    if cat_lower not in cat_spend_lower:
+                        cat_spend_lower[cat_lower] = t.category
         
         self.percat_table.setRowCount(len(per_limits))
         for r, (cat, lim) in enumerate(per_limits.items()):
