@@ -19,7 +19,7 @@ Implements:
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, 
     QMenu, QMenuBar, QFileDialog, QMessageBox, QFrame, QProgressDialog,
-    QScrollArea
+    QScrollArea, QComboBox
 )
 from PyQt6.QtCore import Qt, pyqtSignal, QThread, pyqtSlot
 from PyQt6.QtGui import QFont, QAction, QPixmap, QIcon
@@ -46,6 +46,7 @@ class DashboardPage(QWidget):
     show_budget_settings = pyqtSignal()
     show_profile = pyqtSignal()  # Signal to show profile page
     transactions_updated = pyqtSignal()  # Signal when transactions are updated
+    notify = pyqtSignal(str, str)  # text, level
     
     def __init__(self, current_user=None, user_manager=None):
         super().__init__()
@@ -67,24 +68,62 @@ class DashboardPage(QWidget):
         layout.setSpacing(20)
         layout.setContentsMargins(30, 30, 30, 30)
         
-        # Welcome section with user name
-        welcome_text = "Welcome to your Personal Budget Dashboard!"
+        # Welcome section with user name + streak badge
+        welcome_text = "Welcome!"
         if self.current_user:
-            welcome_text = f"Welcome back, {self.current_user.first_name}!"
+            name = (getattr(self.current_user, 'first_name', '') or '').strip()
+            if not name:
+                name = (getattr(self.current_user, 'username', '') or '').strip()
+            if name:
+                welcome_text = f"Welcome, {name}!"
         
-        welcome_label = QLabel(welcome_text)
-        welcome_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.welcome_label = QLabel(welcome_text)
+        self.welcome_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         welcome_font = QFont()
-        welcome_font.setPointSize(24)
+        welcome_font.setPointSize(26)
         welcome_font.setBold(True)
-        welcome_label.setFont(welcome_font)
-        welcome_label.setStyleSheet("color: #2c3e50; margin-bottom: 10px;")
-        layout.addWidget(welcome_label)
+        self.welcome_label.setFont(welcome_font)
+        self.welcome_label.setStyleSheet("color: #2c3e50; margin-bottom: 10px; font-size: 26px;")
+        layout.addWidget(self.welcome_label)
         
-        # Navigation menu bar
-        self.create_navigation_menu(layout)
+        # Month filter dropdown
+        filter_layout = QHBoxLayout()
+        filter_layout.addWidget(QLabel("Filter by Period:"))
+        self.month_filter = QComboBox()
+        self.month_filter.setStyleSheet("""
+            QComboBox {
+                padding: 10px;
+                border: 2px solid #ddd;
+                border-radius: 6px;
+                font-size: 14px;
+                min-width: 200px;
+            }
+            QComboBox:focus {
+                border-color: #3498db;
+            }
+            QComboBox::drop-down {
+                border: none;
+                width: 20px;
+            }
+            QComboBox QAbstractItemView {
+                border: 2px solid #ddd;
+                border-radius: 6px;
+                selection-background-color: #3498db;
+                selection-color: white;
+            }
+        """)
+        self.month_filter.currentTextChanged.connect(self._on_month_filter_changed)
+        filter_layout.addWidget(self.month_filter)
+        filter_layout.addStretch()
+        layout.addLayout(filter_layout)
+
+        # Streak badge (shown if > 0)
+        self.streak_label = QLabel("")
+        self.streak_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.streak_label.setStyleSheet("color: #2c3e50; font-size: 13px; margin-top: -10px;")
+        layout.addWidget(self.streak_label)
         
-        # Quick stats section
+        # Quick stats section (expanded)
         stats_layout = QHBoxLayout()
         
         # Total Spending Card
@@ -100,123 +139,32 @@ class DashboardPage(QWidget):
         stats_layout.addWidget(self.transactions_card)
         
         layout.addLayout(stats_layout)
+
+        # Add secondary metrics row
+        secondary = QHBoxLayout()
+        self.income_card = self.create_stat_card("Total Income", "$0.00", "#2f6fed")
+        secondary.addWidget(self.income_card)
+        self.net_card = self.create_stat_card("Net Balance", "$0.00", "#2c3e50")
+        secondary.addWidget(self.net_card)
+        self.categories_card = self.create_stat_card("Categories", "0", "#16a085")
+        secondary.addWidget(self.categories_card)
+        layout.addLayout(secondary)
         
         # Update stats with current user data
         self.update_dashboard_stats()
         
-        # Quick actions section
-        actions_label = QLabel("Quick Actions")
-        actions_font = QFont()
-        actions_font.setPointSize(18)
-        actions_font.setBold(True)
-        actions_label.setFont(actions_font)
-        actions_label.setStyleSheet("color: #2c3e50; margin-top: 30px;")
-        layout.addWidget(actions_label)
-        
+        # Actions condensed
         actions_layout = QHBoxLayout()
-        
-        # Upload Statement Button
-        upload_button = QPushButton("📄 Upload Bank Statement")
-        upload_button.setStyleSheet("""
-            QPushButton {
-                background-color: #3498db;
-                color: white;
-                border: none;
-                padding: 15px 25px;
-                border-radius: 8px;
-                font-size: 14px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #2980b9;
-            }
-        """)
+        upload_button = QPushButton("Upload Bank Statement")
         upload_button.clicked.connect(self.upload_bank_statement)
         actions_layout.addWidget(upload_button)
-        
-        # View Transactions Button
-        transactions_button = QPushButton("💳 View Transactions")
-        transactions_button.setStyleSheet("""
-            QPushButton {
-                background-color: #27ae60;
-                color: white;
-                border: none;
-                padding: 15px 25px;
-                border-radius: 8px;
-                font-size: 14px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #229954;
-            }
-        """)
-        transactions_button.clicked.connect(self.show_transactions.emit)
-        actions_layout.addWidget(transactions_button)
-        
-        # Set Budget Button
-        budget_button = QPushButton("💰 Set Budget")
-        budget_button.setStyleSheet("""
-            QPushButton {
-                background-color: #f39c12;
-                color: white;
-                border: none;
-                padding: 15px 25px;
-                border-radius: 8px;
-                font-size: 14px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #e67e22;
-            }
-        """)
-        budget_button.clicked.connect(self.show_budget_settings.emit)
-        actions_layout.addWidget(budget_button)
-        
-        # Spending Analysis Button
-        analysis_button = QPushButton("📊 Spending Analysis")
-        analysis_button.setStyleSheet("""
-            QPushButton {
-                background-color: #9b59b6;
-                color: white;
-                border: none;
-                padding: 15px 25px;
-                border-radius: 8px;
-                font-size: 14px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #8e44ad;
-            }
-        """)
-        analysis_button.clicked.connect(self.show_spending_analysis.emit)
-        actions_layout.addWidget(analysis_button)
-        
-        # Add second row for more buttons
-        actions_layout2 = QHBoxLayout()
-        
-        # My Profile Button
-        profile_button = QPushButton("👤 My Profile")
-        profile_button.setStyleSheet("""
-            QPushButton {
-                background-color: #e67e22;
-                color: white;
-                border: none;
-                padding: 15px 25px;
-                border-radius: 8px;
-                font-size: 14px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #d35400;
-            }
-        """)
-        profile_button.clicked.connect(self.show_profile)
-        actions_layout2.addWidget(profile_button)
-        
-        actions_layout2.addStretch()
-        
+        # Export dashboard snapshot
+        export_btn = QPushButton("Export Dashboard")
+        from core.exportWin import save_window_dialog
+        export_btn.clicked.connect(lambda: save_window_dialog(self))
+        actions_layout.addWidget(export_btn)
+        actions_layout.addStretch()
         layout.addLayout(actions_layout)
-        layout.addLayout(actions_layout2)
         
         # Recent activity section
         activity_label = QLabel("Recent Activity")
@@ -269,30 +217,7 @@ class DashboardPage(QWidget):
         self.activity_frame.setLayout(activity_layout)
         layout.addWidget(self.activity_frame)
         
-        # Coming soon features
-        features_label = QLabel("Coming Soon Features")
-        features_font = QFont()
-        features_font.setPointSize(18)
-        features_font.setBold(True)
-        features_label.setFont(features_font)
-        features_label.setStyleSheet("color: #2c3e50; margin-top: 30px;")
-        layout.addWidget(features_label)
-        
-        features_info = QLabel("""
-        <div style="background-color: #e8f4f8; border: 1px solid #bee5eb; border-radius: 8px; padding: 20px; color: #0c5460;">
-            <h4>Dashboard Features Coming Soon:</h4>
-            <ul>
-                <li><strong>Spending Categories:</strong> Visualize your expenses with interactive pie charts</li>
-                <li><strong>Monthly Trends:</strong> Track your spending patterns over time</li>
-                <li><strong>Budget Goals:</strong> Set and monitor your monthly spending limits</li>
-                <li><strong>Transaction Management:</strong> Add notes and modify categories</li>
-                <li><strong>Reports:</strong> Export your data for tax preparation</li>
-                <li><strong>Notifications:</strong> Get alerts for budget limits and subscriptions</li>
-            </ul>
-        </div>
-        """)
-        features_info.setWordWrap(True)
-        layout.addWidget(features_info)
+        # (Removed legacy Coming Soon section)
         
         layout.addStretch()
         main_widget.setLayout(layout)
@@ -424,6 +349,12 @@ class DashboardPage(QWidget):
             QMessageBox.warning(self, "Error", "User not logged in")
             return
         
+        # Ask bank type (Auto, Wells Fargo, Chase, Truist)
+        bank_options = ["Auto-detect", "Wells Fargo", "Chase", "Truist"]
+        bank_choice, ok_bank = QInputDialog.getItem(self, "Bank Type", "Select bank for parsing:", bank_options, 0, False)
+        if not ok_bank:
+            return
+
         # Open file dialog
         file_path, _ = QFileDialog.getOpenFileName(
             self, 
@@ -443,19 +374,38 @@ class DashboardPage(QWidget):
             
             # Step 1: Parse CSV using Jason's upload_statement function
             progress.setLabelText("Reading CSV file...")
-            rows = upload_statement(file_path)
+            progress.setValue(10)
+            
+            print(f"Attempting to process file: {file_path}")
+            # Select bank enum if chosen explicitly
+            from core.fileUpload import Banks
+            selected_bank = None
+            if bank_choice == "Wells Fargo":
+                selected_bank = Banks.WELLS_FARGO
+            elif bank_choice == "Chase":
+                selected_bank = Banks.CHASE
+            elif bank_choice == "Truist":
+                selected_bank = Banks.TRUIST
+
+            rows = upload_statement(file_path, bank=selected_bank or Banks.WELLS_FARGO if bank_choice != "Auto-detect" else Banks.WELLS_FARGO)
+            print(f"CSV processing completed. Found {len(rows) if rows else 0} rows")
             
             if not rows:
                 progress.close()
                 QMessageBox.warning(self, "Error", "Failed to read CSV file or file is empty")
+                self.notify.emit("Failed to read CSV file or file is empty", "error")
                 return
             
             # Step 2: Convert to Transaction objects using Luke's dicts_to_transactions
             progress.setLabelText("Converting to transactions...")
+            # Generate unique upload ID for this upload
+            upload_id = f"upload-{datetime.now().isoformat(timespec='seconds')}"
+            # Statement month will be auto-calculated, so pass empty string
             transactions = dicts_to_transactions(
                 rows,
                 source_name="user-upload",
-                source_upload_id=f"upload-{datetime.now().isoformat(timespec='seconds')}"
+                source_upload_id=upload_id,
+                statement_month=""  # Will be auto-calculated by _normalize_statement_months
             )
             
             # Step 3: Load categorization rules
@@ -479,8 +429,18 @@ class DashboardPage(QWidget):
             progress.close()
             
             if success:
+                # Statement month is automatically calculated by _normalize_statement_months in add_transactions
+                # Show user the calculated month number
+                if transactions:
+                    # Get the statement_month from the first transaction (all in upload should have same month)
+                    calculated_month = transactions[0].statement_month if transactions[0].statement_month else "Unknown"
+                    self.notify.emit(f"Uploaded {len(transactions)} transactions. Assigned to {calculated_month}.", "success")
                 # Update current user object
                 self.current_user.transactions.extend(transactions)
+                
+                # Repopulate month filter with new transactions
+                if hasattr(self, 'month_filter'):
+                    self._populate_month_filter()
                 
                 # Update dashboard stats
                 self.update_dashboard_stats()
@@ -499,8 +459,10 @@ class DashboardPage(QWidget):
                     f"Categories found: {len(set(t.category for t in transactions))}\n"
                     f"Total amount: ${sum(abs(t.amount) for t in transactions):.2f}"
                 )
+                self.notify.emit(f"Processed {len(transactions)} transactions.", "success")
             else:
                 QMessageBox.critical(self, "Error", f"Failed to save transactions: {message}")
+                self.notify.emit(f"Failed to save transactions: {message}", "error")
                 
         except Exception as e:
             if 'progress' in locals():
@@ -511,6 +473,7 @@ class DashboardPage(QWidget):
                 f"Failed to process bank statement:\n{str(e)}\n\n"
                 f"Please ensure the CSV file is in the correct format."
             )
+            self.notify.emit("Error while processing bank statement", "error")
     
     def update_recent_activity(self, activity_text):
         """Update the recent activity section"""
@@ -537,13 +500,101 @@ class DashboardPage(QWidget):
         """Update the current user and refresh the welcome message"""
         self.current_user = user
         # Refresh the welcome message
-        if hasattr(self, 'layout') and self.layout().count() > 0:
-            welcome_widget = self.layout().itemAt(0).widget()
-            if isinstance(welcome_widget, QLabel):
-                welcome_text = f"Welcome back, {user.first_name}!"
-                welcome_widget.setText(welcome_text)
+        if hasattr(self, 'welcome_label'):
+            name = (getattr(user, 'first_name', '') or '').strip()
+            if not name:
+                name = (getattr(user, 'username', '') or '').strip()
+            if name:
+                welcome_text = f"Welcome, {name}!"
+            else:
+                welcome_text = "Welcome!"
+            self.welcome_label.setText(welcome_text)
+        
+        # Populate month filter with user's transactions
+        if hasattr(self, 'month_filter'):
+            self._populate_month_filter()
         
         # Update dashboard stats
+        self.update_dashboard_stats()
+        self.update_streak_badge()
+    
+    def _populate_month_filter(self):
+        """Populate month filter dropdown with available months"""
+        if not self.current_user or not self.current_user.transactions:
+            self.month_filter.clear()
+            self.month_filter.addItem("All Time")
+            return
+        
+        transactions = self.current_user.transactions
+        
+        # Get unique months (both by date and statement_month)
+        month_options = {"All Time": None}
+        
+        # Add months by date (YYYY-MM format)
+        date_months = set()
+        for t in transactions:
+            month_key = t.date.strftime("%Y-%m")
+            month_name = t.date.strftime("%B %Y")  # e.g., "January 2025"
+            date_months.add((month_key, month_name))
+        
+        # Add statement months if they exist
+        statement_months = set()
+        for t in transactions:
+            if t.statement_month:
+                statement_months.add(t.statement_month)
+        
+        # Sort date months chronologically (most recent first)
+        sorted_date_months = sorted(date_months, key=lambda x: x[0], reverse=True)
+        
+        # Add date-based months
+        for month_key, month_name in sorted_date_months:
+            month_options[month_name] = ("date", month_key)
+        
+        # Add statement months (prefixed with "Statement: ")
+        for stmt_month in sorted(statement_months, reverse=True):
+            display_name = f"Statement: {stmt_month}"
+            month_options[display_name] = ("statement", stmt_month)
+        
+        # Populate dropdown
+        self.month_filter.clear()
+        self.month_filter.addItem("All Time")
+        
+        # Add date months first
+        for month_key, month_name in sorted_date_months:
+            self.month_filter.addItem(month_name)
+        
+        # Add statement months
+        for stmt_month in sorted(statement_months, reverse=True):
+            display_name = f"Statement: {stmt_month}"
+            self.month_filter.addItem(display_name)
+        
+        # Store options for filtering
+        self._month_filter_options = month_options
+    
+    def _filter_transactions_by_month(self, transactions):
+        """Filter transactions based on selected month"""
+        selected = self.month_filter.currentText()
+        if selected == "All Time" or not hasattr(self, '_month_filter_options'):
+            return transactions
+        
+        filter_info = self._month_filter_options.get(selected)
+        if not filter_info:
+            return transactions
+        
+        filter_type, filter_value = filter_info
+        
+        if filter_type == "date":
+            # Filter by date (YYYY-MM)
+            year, month = map(int, filter_value.split("-"))
+            return [t for t in transactions if t.date.year == year and t.date.month == month]
+        elif filter_type == "statement":
+            # Filter by statement_month
+            return [t for t in transactions if t.statement_month == filter_value]
+        
+        return transactions
+    
+    def _on_month_filter_changed(self, text):
+        """Handle month filter change"""
         self.update_dashboard_stats()
     
     def update_dashboard_stats(self):
@@ -551,7 +602,14 @@ class DashboardPage(QWidget):
         if not self.current_user or not hasattr(self, 'spending_card'):
             return
         
-        transactions = self.current_user.transactions
+        all_transactions = self.current_user.transactions
+        
+        # Filter transactions by selected month
+        transactions = self._filter_transactions_by_month(all_transactions) if hasattr(self, 'month_filter') else all_transactions
+        
+        # Populate month filter if not already done
+        if hasattr(self, 'month_filter') and self.month_filter.count() == 0:
+            self._populate_month_filter()
         
         # Calculate total spending (negative amounts)
         total_spending = sum(abs(t.amount) for t in transactions if t.amount < 0)
@@ -561,6 +619,10 @@ class DashboardPage(QWidget):
         
         # Calculate budget remaining (simple calculation)
         budget_remaining = total_income - total_spending
+        
+        # Get unique categories count
+        categories = set(t.category for t in transactions)
+        category_count = len(categories)
         
         # Update stat cards - find the value labels in each card
         try:
@@ -584,6 +646,26 @@ class DashboardPage(QWidget):
                 transactions_value_label = transactions_layout.itemAt(1).widget()
                 if transactions_value_label:
                     transactions_value_label.setText(str(len(transactions)))
+            # Update income card
+            income_layout = self.income_card.layout()
+            if income_layout and income_layout.count() > 1:
+                income_value_label = income_layout.itemAt(1).widget()
+                if income_value_label:
+                    income_value_label.setText(f"${total_income:.2f}")
+            # Update net card
+            net_layout = self.net_card.layout()
+            if net_layout and net_layout.count() > 1:
+                net_value_label = net_layout.itemAt(1).widget()
+                if net_value_label:
+                    net_value_label.setText(f"${budget_remaining:.2f}")
+            
+            # Update categories card
+            if hasattr(self, 'categories_card'):
+                categories_layout = self.categories_card.layout()
+                if categories_layout and categories_layout.count() > 1:
+                    categories_value_label = categories_layout.itemAt(1).widget()
+                    if categories_value_label:
+                        categories_value_label.setText(str(category_count))
         except Exception as e:
             print(f"Error updating dashboard stats: {e}")
         
@@ -611,3 +693,49 @@ class DashboardPage(QWidget):
             <p style="color: #6c757d;">Upload your first bank statement to start tracking your spending!</p>
             <p style="color: #6c757d; font-size: 12px;">Supported formats: CSV</p>
             """)
+
+        # Budget alerts
+        try:
+            from datetime import datetime as _dt
+            if getattr(self.current_user, 'monthly_spending_limit', None):
+                # compute current month spending
+                now = _dt.now()
+                month_spend = sum(
+                    abs(t.amount) for t in transactions
+                    if (t.amount < 0 and t.date.year == now.year and t.date.month == now.month)
+                )
+                limit = float(self.current_user.monthly_spending_limit)
+                if limit > 0:
+                    ratio = (float(month_spend) / limit) * 100.0
+                    if ratio >= 100:
+                        self.notify.emit("You have reached your monthly spending limit.", "warning")
+                    elif ratio >= 75:
+                        self.notify.emit(f"You have used {ratio:.0f}% of your monthly spending limit.", "info")
+
+            # Upcoming subscriptions (Luke fields)
+            upcoming = 0
+            try:
+                now = _dt.now()
+                for t in transactions:
+                    nd = getattr(t, 'next_due_date', None)
+                    is_sub = getattr(t, 'is_subscription', False)
+                    if is_sub and nd and (0 <= (nd - now).days <= 14):
+                        upcoming += 1
+            except Exception:
+                pass
+            if upcoming > 0:
+                self.notify.emit(f"{upcoming} subscription payment(s) due soon.", "warning")
+        except Exception:
+            pass
+
+    def update_streak_badge(self):
+        try:
+            if not self.current_user or not self.user_manager:
+                return
+            streak = self.user_manager.recompute_goal_streak(self.current_user.username)
+            if streak and streak > 0:
+                self.streak_label.setText(f"🔥 Goal streak: {streak} month(s) in a row")
+            else:
+                self.streak_label.setText("")
+        except Exception:
+            self.streak_label.setText("")

@@ -27,11 +27,11 @@ from datetime import datetime
 
 #imports for chart guis
 import sys
-from PyQt5.QtWidgets import QApplication
-from PyQt5.QtChart import QChart, QChartView, QPieSeries, QLineSeries, QValueAxis, QScatterSeries, QCategoryAxis
-from PyQt5.QtGui import QPainter, QColor
-from PyQt5.QtWidgets import QTableWidget, QTableWidgetItem, QHeaderView
-from PyQt5.QtCore import Qt
+from PyQt6.QtWidgets import QApplication
+from PyQt6.QtCharts import QChart, QChartView, QPieSeries, QLineSeries, QValueAxis, QScatterSeries, QCategoryAxis
+from PyQt6.QtGui import QPainter, QColor
+from PyQt6.QtWidgets import QTableWidget, QTableWidgetItem, QHeaderView
+from PyQt6.QtCore import Qt
 
 # ===============================================================
 # Function: show_pie
@@ -60,10 +60,10 @@ def show_pie(data: list[dict]) -> None:
     chart.setTitle("Spending Summary")
 
     view = QChartView(chart)
-    view.setRenderHint(QPainter.Antialiasing)
+    view.setRenderHint(QPainter.RenderHint.Antialiasing)
     view.resize(640, 480)
     view.show()
-    app.exec_()
+    app.exec()
 
 
 # ===============================================================
@@ -108,7 +108,7 @@ def show_table(data: list[dict]) -> None:
             amt_str = f"{float(amt):.2f}"
 
         amt_item = QTableWidgetItem(amt_str)
-        amt_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        amt_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         amt_item.setFlags(amt_item.flags() ^ Qt.ItemIsEditable)
         table.setItem(r, 1, amt_item)
 
@@ -118,22 +118,22 @@ def show_table(data: list[dict]) -> None:
         except Exception:
             pct_str = f"{float(pct):.2f}%"
         pct_item = QTableWidgetItem(pct_str)
-        pct_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        pct_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         pct_item.setFlags(pct_item.flags() ^ Qt.ItemIsEditable)
         table.setItem(r, 2, pct_item)
 
     # nice sizing and appearance
     header = table.horizontalHeader()
-    header.setSectionResizeMode(0, QHeaderView.Stretch)
-    header.setSectionResizeMode(1, QHeaderView.ResizeToContents)
-    header.setSectionResizeMode(2, QHeaderView.ResizeToContents)
+    header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+    header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+    header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
 
     table.setWindowTitle("Spending Summary — Table")
     table.resize(640, 480)
     table.show()
 
     if created_app:
-        app.exec_()
+        app.exec()
     
 # ===============================================================
 # Function: spending_summary
@@ -358,7 +358,7 @@ def show_forecast(forecast_data: list[dict]) -> None:
 
     scatter_actual = QScatterSeries()  # blue points for actual spending
     scatter_actual.setName("Previous Spending")
-    scatter_actual.setMarkerShape(QScatterSeries.MarkerShapeCircle)
+    scatter_actual.setMarkerShape(QScatterSeries.MarkerShape.MarkerShapeCircle)
     scatter_actual.setColor(QColor("blue"))
     scatter_actual.setBorderColor(QColor("blue"))
     scatter_actual.setMarkerSize(10)
@@ -367,7 +367,7 @@ def show_forecast(forecast_data: list[dict]) -> None:
 
     scatter_forecast = QScatterSeries()  # yellow point for forecast
     scatter_forecast.setName("Forecast For Next Month")
-    scatter_forecast.setMarkerShape(QScatterSeries.MarkerShapeCircle)
+    scatter_forecast.setMarkerShape(QScatterSeries.MarkerShape.MarkerShapeCircle)
     scatter_forecast.setColor(QColor("yellow"))
     scatter_forecast.setBorderColor(QColor("orange"))
     scatter_forecast.setMarkerSize(12)
@@ -379,24 +379,21 @@ def show_forecast(forecast_data: list[dict]) -> None:
     chart.addSeries(scatter_actual)
     chart.addSeries(scatter_forecast)
     chart.setTitle("Monthly Spending Forecast")
-
-    # import category axis for proper month labeling
-    from PyQt5.QtChart import QCategoryAxis
-
     axis_x = QCategoryAxis()  # x axis setup (string labels)
     axis_x.setTitleText("Month")
     for i, month in enumerate(months):
         axis_x.append(month, i)
     axis_x.append("Forecast", len(values))
-    axis_x.setLabelsPosition(QCategoryAxis.AxisLabelsPositionOnValue)
-    chart.addAxis(axis_x, Qt.AlignBottom)
+    # In PyQt6, default labels position is sufficient for category axis; explicit
+    # setLabelsPosition call (used in PyQt5) is not needed and causes errors.
+    chart.addAxis(axis_x, Qt.AlignmentFlag.AlignBottom)
 
     axis_y = QValueAxis()  # y axis setup
     axis_y.setTitleText("Spending ($)")
     y_min = min(values + [float(forecast_value)]) * 0.9  # pad range
     y_max = max(values + [float(forecast_value)]) * 1.1
     axis_y.setRange(y_min, y_max)
-    chart.addAxis(axis_y, Qt.AlignLeft)
+    chart.addAxis(axis_y, Qt.AlignmentFlag.AlignLeft)
  
     line_series.attachAxis(axis_x)  # attach all series to both axes
     line_series.attachAxis(axis_y)
@@ -406,12 +403,12 @@ def show_forecast(forecast_data: list[dict]) -> None:
     scatter_forecast.attachAxis(axis_y)
     
     view = QChartView(chart)  # finalize chart
-    view.setRenderHint(QPainter.Antialiasing)
+    view.setRenderHint(QPainter.RenderHint.Antialiasing)
     view.resize(800, 480)
     view.show()
 
     if created_app:
-        app.exec_()
+        app.exec()
 
 def main():
 
