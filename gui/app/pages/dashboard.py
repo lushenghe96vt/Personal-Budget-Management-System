@@ -19,7 +19,7 @@ Implements:
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, 
     QMenu, QMenuBar, QFileDialog, QMessageBox, QFrame, QProgressDialog,
-    QScrollArea, QComboBox
+    QScrollArea, QComboBox, QInputDialog
 )
 from PyQt6.QtCore import Qt, pyqtSignal, QThread, pyqtSlot
 from PyQt6.QtGui import QFont, QAction, QPixmap, QIcon
