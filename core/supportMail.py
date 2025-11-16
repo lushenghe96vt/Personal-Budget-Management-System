@@ -19,7 +19,7 @@ SMTP_PORT = 587
 EMAIL_ADDRESS = os.getenv("EMAIL_ADDRESS")
 EMAIL_PASS = os.getenv("EMAIL_PASS")
 
-def send_sup_email(user_email: str, user_msg: str):
+def send_sup_msg(user_email: str, user_msg: str):
     """
     This function allows users to send an email to the developers for changes.
     The function essentially just sends an email from the developer email 
