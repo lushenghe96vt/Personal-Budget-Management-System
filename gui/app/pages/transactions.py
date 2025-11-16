@@ -21,7 +21,7 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, 
     QPushButton, QMessageBox, QTableWidget, QTableWidgetItem,
     QHeaderView, QComboBox, QTextEdit, QDialog, QFormLayout,
-    QGroupBox, QFrame, QSplitter, QTabWidget
+    QGroupBox, QFrame, QSplitter, QTabWidget, QToolButton, QStyle, QSizePolicy
 )
 from PyQt6.QtCore import Qt, pyqtSignal, QSortFilterProxyModel, QAbstractTableModel, QModelIndex
 from PyQt6.QtGui import QFont, QColor
@@ -37,6 +37,7 @@ sys.path.insert(0, str(project_root))
 from core.categorize_edit import set_category, set_notes, CategoryRules
 from core.models import Transaction
 from models import User
+from core.exportWin import save_window_dialog
 
 
 class TransactionEditDialog(QDialog):
@@ -251,15 +252,25 @@ class TransactionsPage(QWidget):
         layout.setSpacing(20)
         layout.setContentsMargins(20, 20, 20, 20)
         
-        # Title
+        # Header row with back icon and title
+        header = QHBoxLayout()
+        self.back_button = QToolButton()
+        self.back_button.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_ArrowBack))
+        self.back_button.setAutoRaise(True)
+        self.back_button.setStyleSheet("QToolButton { padding-right: 8px; } QToolButton:hover { color: #245add; }")
+        self.back_button.clicked.connect(self.go_back_to_dashboard)
+        header.addWidget(self.back_button)
         title_label = QLabel("Transaction Management")
-        title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         title_font = QFont()
-        title_font.setPointSize(24)
+        title_font.setPointSize(26)
         title_font.setBold(True)
         title_label.setFont(title_font)
-        title_label.setStyleSheet("color: #2c3e50; margin-bottom: 10px;")
-        layout.addWidget(title_label)
+        title_label.setStyleSheet("color: #2c3e50;")
+        header.addWidget(title_label)
+        header.addStretch()
+        layout.addLayout(header)
+        
+        # (Title moved into header)
         
         # Summary stats
         stats_layout = QHBoxLayout()
@@ -309,7 +320,7 @@ class TransactionsPage(QWidget):
         stats_layout.addStretch()
         layout.addLayout(stats_layout)
         
-        # Search and filter section
+        # Search and filter section + sort
         filter_layout = QHBoxLayout()
         
         # Search box
@@ -330,41 +341,71 @@ class TransactionsPage(QWidget):
         filter_layout.addWidget(QLabel("Search:"))
         filter_layout.addWidget(self.search_input)
         
-        # Category filter
-        self.category_filter = QComboBox()
-        self.category_filter.addItem("All Categories")
-        self.category_filter.addItems(sorted(self.available_categories))
-        self.category_filter.setStyleSheet("""
+        # Common dropdown styling
+        dropdown_style = """
             QComboBox {
                 padding: 10px;
                 border: 2px solid #ddd;
                 border-radius: 6px;
                 font-size: 14px;
+                min-height: 20px;
             }
-        """)
+            QComboBox:focus {
+                border-color: #3498db;
+            }
+            QComboBox::drop-down {
+                border: none;
+                width: 20px;
+            }
+            QComboBox QAbstractItemView {
+                border: 2px solid #ddd;
+                border-radius: 6px;
+                selection-background-color: #3498db;
+                selection-color: white;
+            }
+        """
+        
+        # Category filter
+        self.category_filter = QComboBox()
+        self.category_filter.addItem("All Categories")
+        self.category_filter.addItems(sorted(self.available_categories))
+        self.category_filter.setStyleSheet(dropdown_style)
         self.category_filter.currentTextChanged.connect(self.filter_transactions)
         filter_layout.addWidget(QLabel("Category:"))
         filter_layout.addWidget(self.category_filter)
         
+        # Sort controls
+        self.sort_field = QComboBox()
+        self.sort_field.addItems(["Date", "Category", "Description"])
+        self.sort_field.setStyleSheet(dropdown_style)
+        
+        self.sort_dir = QComboBox()
+        self.sort_dir.addItems(["Descending", "Ascending"])
+        self.sort_dir.setStyleSheet(dropdown_style)
+        
+        sort_btn = QPushButton("Sort")
+        sort_btn.clicked.connect(self.sort_transactions)
+        filter_layout.addWidget(QLabel("Sort by:"))
+        filter_layout.addWidget(self.sort_field)
+        filter_layout.addWidget(self.sort_dir)
+        filter_layout.addWidget(sort_btn)
         filter_layout.addStretch()
         layout.addLayout(filter_layout)
         
         # Transactions table
         self.table = QTableWidget()
-        self.table.setColumnCount(7)
+        self.table.setColumnCount(4)
         self.table.setHorizontalHeaderLabels([
-            "Date", "Description", "Amount", "Category", "Notes", "Source", "Actions"
+            "Date", "Description", "Category", "Actions"
         ])
         
         # Configure table
         header = self.table.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)  # Date
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)  # Description
-        header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)  # Amount
-        header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)  # Category
-        header.setSectionResizeMode(4, QHeaderView.ResizeMode.Stretch)  # Notes
-        header.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)  # Source
-        header.setSectionResizeMode(6, QHeaderView.ResizeMode.ResizeToContents)  # Actions
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)  # Category
+        # Actions column: ResizeToContents but with minimum width
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)  # Actions
         
         self.table.setAlternatingRowColors(True)
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
@@ -384,29 +425,18 @@ class TransactionsPage(QWidget):
         """)
         
         layout.addWidget(self.table)
+        self.table.setStyleSheet("QTableWidget::item { padding: 10px; }")
+        # Set minimum row height instead of fixed height (increased for better button visibility)
+        self.table.verticalHeader().setMinimumSectionSize(50)
+        self.table.verticalHeader().setDefaultSectionSize(50)
+        # Allow rows to resize based on content
+        self.table.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
         
         # Action buttons
         button_layout = QHBoxLayout()
-        
-        self.back_button = QPushButton("🏠 Back to Dashboard")
-        self.back_button.setStyleSheet("""
-            QPushButton {
-                background-color: #95a5a6;
-                color: white;
-                border: none;
-                padding: 10px 20px;
-                border-radius: 6px;
-                font-size: 14px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #7f8c8d;
-            }
-        """)
-        self.back_button.clicked.connect(self.go_back_to_dashboard)
-        button_layout.addWidget(self.back_button)
-        
-        self.refresh_button = QPushButton("🔄 Refresh")
+        button_layout.addStretch()
+
+        self.refresh_button = QPushButton("Refresh")
         self.refresh_button.setStyleSheet("""
             QPushButton {
                 background-color: #3498db;
@@ -424,9 +454,9 @@ class TransactionsPage(QWidget):
         self.refresh_button.clicked.connect(self.refresh_table)
         button_layout.addWidget(self.refresh_button)
         
-        button_layout.addStretch()
+        # controls remain on right
         
-        self.export_button = QPushButton("📊 Export Data")
+        self.export_button = QPushButton("Export Data")
         self.export_button.setStyleSheet("""
             QPushButton {
                 background-color: #9b59b6;
@@ -445,7 +475,7 @@ class TransactionsPage(QWidget):
         button_layout.addWidget(self.export_button)
         
         # Clear all transactions button
-        self.clear_all_button = QPushButton("🗑️ Clear All Transactions")
+        self.clear_all_button = QPushButton("Clear All Transactions")
         self.clear_all_button.setStyleSheet("""
             QPushButton {
                 background-color: #e74c3c;
@@ -503,35 +533,24 @@ class TransactionsPage(QWidget):
             
             # Description
             desc_item = QTableWidgetItem(txn.description)
-            desc_item.setToolTip(txn.description_raw)  # Show raw description on hover
+            desc_item.setToolTip(txn.description_raw)
             self.table.setItem(row, 1, desc_item)
-            
-            # Amount
-            amount_color = QColor("#e74c3c") if txn.amount < 0 else QColor("#27ae60")
-            amount_sign = "-" if txn.amount < 0 else "+"
-            amount_item = QTableWidgetItem(f"{amount_sign}${abs(txn.amount):.2f}")
-            amount_item.setForeground(amount_color)
-            self.table.setItem(row, 2, amount_item)
             
             # Category
             category_item = QTableWidgetItem(txn.category)
             if txn.user_override:
-                category_item.setBackground(QColor("#fff3cd"))  # Light yellow for manual overrides
-            self.table.setItem(row, 3, category_item)
-            
-            # Notes
-            notes_item = QTableWidgetItem(txn.notes)
-            self.table.setItem(row, 4, notes_item)
-            
-            # Source
-            source_item = QTableWidgetItem(txn.source_name or "Unknown")
-            self.table.setItem(row, 5, source_item)
+                category_item.setBackground(QColor("#fff3cd"))
+            self.table.setItem(row, 2, category_item)
             
             # Actions
             actions_widget = QWidget()
             actions_layout = QHBoxLayout()
-            actions_layout.setContentsMargins(0, 0, 0, 0)
-            actions_layout.setSpacing(5)
+            # Increased margins for better padding and centering
+            actions_layout.setContentsMargins(10, 6, 10, 6)
+            # Increased spacing between buttons to prevent collision
+            actions_layout.setSpacing(12)
+            # Center both horizontally and vertically
+            actions_layout.setAlignment(Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter)
             
             edit_button = QPushButton("Edit")
             edit_button.setStyleSheet("""
@@ -539,7 +558,7 @@ class TransactionsPage(QWidget):
                     background-color: #f39c12;
                     color: white;
                     border: none;
-                    padding: 5px 10px;
+                    padding: 8px 14px;
                     border-radius: 4px;
                     font-size: 12px;
                 }
@@ -547,6 +566,9 @@ class TransactionsPage(QWidget):
                     background-color: #e67e22;
                 }
             """)
+            edit_button.setMinimumHeight(30)
+            edit_button.setMinimumWidth(75)
+            edit_button.setMaximumWidth(75)
             edit_button.clicked.connect(lambda checked, t=txn: self.edit_transaction(t))
             actions_layout.addWidget(edit_button)
             
@@ -556,7 +578,7 @@ class TransactionsPage(QWidget):
                     background-color: #e74c3c;
                     color: white;
                     border: none;
-                    padding: 5px 10px;
+                    padding: 8px 14px;
                     border-radius: 4px;
                     font-size: 12px;
                 }
@@ -564,30 +586,114 @@ class TransactionsPage(QWidget):
                     background-color: #c0392b;
                 }
             """)
+            delete_button.setMinimumHeight(30)
+            delete_button.setMinimumWidth(75)
+            delete_button.setMaximumWidth(75)
             delete_button.clicked.connect(lambda checked, t=txn: self.delete_transaction(t))
             actions_layout.addWidget(delete_button)
             
             actions_widget.setLayout(actions_layout)
-            self.table.setCellWidget(row, 6, actions_widget)
+            # Set minimum and preferred height for better vertical centering
+            actions_widget.setMinimumHeight(44)
+            actions_widget.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)
+            self.table.setCellWidget(row, 3, actions_widget)
+        
+        # Set minimum width for Actions column after populating
+        actions_col_width = self.table.columnWidth(3)
+        if actions_col_width < 160:
+            self.table.setColumnWidth(3, 160)
+        
+        # Ensure rows have flexible height with minimum (enough for action buttons)
+        for row in range(self.table.rowCount()):
+            height = self.table.rowHeight(row)
+            if height < 50:
+                self.table.setRowHeight(row, 50)
+
+        # Interactions
+        from functools import partial
+        self.table.cellDoubleClicked.connect(self.open_details_dialog)
+        self.table.cellClicked.connect(self.handle_cell_click)
+
+    def handle_cell_click(self, row: int, col: int):
+        # Single-click edit via dialog
+        self.open_edit_dialog_for_row(row)
+
+    def open_edit_dialog_for_row(self, row: int):
+        if row < 0:
+            return
+        txns = sorted(self.user.transactions, key=lambda t: t.date, reverse=True)
+        if row >= len(txns):
+            return
+        self.edit_transaction(txns[row])
+
+    def open_details_dialog(self, row: int, col: int):
+        if row < 0:
+            return
+        txns = sorted(self.user.transactions, key=lambda t: t.date, reverse=True)
+        if row >= len(txns):
+            return
+        t = txns[row]
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Transaction Details")
+        dlg.resize(520, 420)
+        box = QVBoxLayout()
+        box.setContentsMargins(16, 16, 16, 16)
+        box.setSpacing(8)
+        def add(label, value):
+            h = QHBoxLayout()
+            h.addWidget(QLabel(f"{label}:"))
+            v = QLabel(value)
+            v.setStyleSheet("font-weight: 600; color: #2c3e50;")
+            h.addWidget(v)
+            h.addStretch()
+            box.addLayout(h)
+        add("Date", t.date.strftime('%Y-%m-%d'))
+        add("Description", t.description)
+        add("Raw", t.description_raw or "-")
+        add("Amount", f"{'-' if t.amount < 0 else '+'}${abs(t.amount):.2f}")
+        add("Category", t.category)
+        add("Notes", t.notes or "-")
+        add("Source", t.source_name or "-")
+        add("Statement", t.statement_month or "-")
+        if getattr(t, 'is_subscription', False):
+            nd = getattr(t, 'next_due_date', None)
+            add("Subscription", "Yes")
+            add("Next Due", nd.strftime('%Y-%m-%d') if nd else "-")
+        btn = QPushButton("Close")
+        btn.clicked.connect(dlg.accept)
+        box.addStretch()
+        box.addWidget(btn)
+        dlg.setLayout(box)
+        dlg.exec()
     
     def filter_transactions(self):
         """Filter transactions based on search and category"""
         search_text = self.search_input.text().lower()
         category_filter = self.category_filter.currentText()
         
+        # Get sorted transactions to match table order
+        transactions = sorted(self.user.transactions, key=lambda t: t.date, reverse=True)
+        
         for row in range(self.table.rowCount()):
             should_show = True
             
-            # Search filter
+            if row >= len(transactions):
+                should_show = False
+                self.table.setRowHidden(row, True)
+                continue
+            
+            txn = transactions[row]
+            
+            # Search filter - search in description
             if search_text:
-                desc = self.table.item(row, 1).text().lower()
-                notes = self.table.item(row, 4).text().lower()
-                if search_text not in desc and search_text not in notes:
+                desc = (self.table.item(row, 1).text() if self.table.item(row, 1) else "").lower()
+                if search_text not in desc:
                     should_show = False
             
-            # Category filter
+            # Category filter - check category column (column 2)
             if category_filter != "All Categories":
-                category = self.table.item(row, 3).text()
+                category_item = self.table.item(row, 2)
+                category = category_item.text() if category_item else ""
                 if category != category_filter:
                     should_show = False
             
@@ -629,6 +735,24 @@ class TransactionsPage(QWidget):
         """Refresh the transactions table"""
         self.populate_table()
         self.filter_transactions()
+
+    def sort_transactions(self):
+        field = self.sort_field.currentText()
+        ascending = self.sort_dir.currentText() == "Ascending"
+        keyf = None
+        if field == "Date":
+            keyf = lambda t: t.date
+        elif field == "Category":
+            keyf = lambda t: (t.category or "")
+        elif field == "Description":
+            keyf = lambda t: (t.description or "")
+        if keyf is None:
+            return
+        self.user.transactions = sorted(self.user.transactions, key=keyf, reverse=not ascending)
+        if self.user_manager:
+            self.user_manager._users[self.user.username] = self.user
+            self.user_manager._save_users()
+        self.refresh_table()
     
     def delete_transaction(self, transaction):
         """Delete a transaction"""
@@ -697,14 +821,8 @@ class TransactionsPage(QWidget):
             QMessageBox.information(self, "Success", "All transactions cleared successfully!")
     
     def export_transactions(self):
-        """Export transactions to CSV"""
-        QMessageBox.information(
-            self,
-            "Export Feature",
-            "Transaction export feature will be implemented in future sprints.\n\n"
-            "This will include:\n"
-            "- Export to CSV format\n"
-            "- Filter by date range\n"
-            "- Include/exclude specific categories\n"
-            "- Custom field selection"
-        )
+        """Export the current page view as PNG/PDF using Jason's export utility."""
+        try:
+            save_window_dialog(self)
+        except Exception as e:
+            QMessageBox.critical(self, "Export Failed", f"Unable to export: {e}")

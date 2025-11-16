@@ -15,7 +15,7 @@ Implements:
   - Real-time data synchronization across pages
 """
 
-from PyQt6.QtWidgets import QApplication, QMainWindow, QStackedWidget, QMenuBar, QStatusBar, QMessageBox
+from PyQt6.QtWidgets import QApplication, QMainWindow, QStackedWidget, QStatusBar, QMessageBox, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QFrame
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QAction
 import sys
@@ -25,11 +25,14 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from models import UserManager, User
+from pathlib import Path
 from pages.auth import AuthWidget
 from pages.profile import ProfilePage
 from pages.dashboard import DashboardPage
 from pages.transactions import TransactionsPage
 from pages.budgets import BudgetAnalysisPage
+from pages.settings import BudgetSettingsPage
+from widgets import NotificationBanner
 
 
 class MainWindow(QMainWindow):
@@ -37,7 +40,9 @@ class MainWindow(QMainWindow):
     
     def __init__(self):
         super().__init__()
-        self.user_manager = UserManager()
+        # Ensure we read/write users from gui/data/users.json
+        data_dir = str(Path(__file__).resolve().parent.parent / "data")
+        self.user_manager = UserManager(data_dir=data_dir)
         self.current_user = None
         self.setup_ui()
         self.show_auth()
@@ -127,9 +132,40 @@ class MainWindow(QMainWindow):
     
     def create_main_app_pages(self):
         """Create the main application pages"""
-        # Create a stacked widget for main app pages
+        # Create a central container with a notification banner on top and pages below
+        container = QWidget()
+        container_layout = QVBoxLayout()
+        container_layout.setContentsMargins(8, 8, 8, 8)
+        container_layout.setSpacing(8)
+
+        self.banner = NotificationBanner()
+        container_layout.addWidget(self.banner)
+
+        # Header
+        header = self._build_header()
+        container_layout.addWidget(header)
+
+        # Body: sidebar + pages
+        body = QWidget()
+        body_layout = QHBoxLayout()
+        body_layout.setContentsMargins(0, 0, 0, 0)
+        body_layout.setSpacing(12)
+
+        self.sidebar = self._build_sidebar()
+        body_layout.addWidget(self.sidebar)
+
+        # Main pages stack
         self.main_pages = QStackedWidget()
-        self.main_app_widget.setCentralWidget(self.main_pages)
+        body_layout.addWidget(self.main_pages, 1)
+        body.setLayout(body_layout)
+        container_layout.addWidget(body, 1)
+
+        # Footer
+        footer = self._build_footer()
+        container_layout.addWidget(footer)
+
+        container.setLayout(container_layout)
+        self.main_app_widget.setCentralWidget(container)
         
         # Dashboard page
         self.dashboard_page = DashboardPage()
@@ -138,6 +174,7 @@ class MainWindow(QMainWindow):
         self.dashboard_page.show_budget_settings.connect(self.handle_show_budget_settings)
         self.dashboard_page.show_profile.connect(self.show_profile)
         self.dashboard_page.transactions_updated.connect(self.handle_transactions_updated)
+        self.dashboard_page.notify.connect(self._notify)
         self.main_pages.addWidget(self.dashboard_page)
         
         # Profile page
@@ -166,11 +203,7 @@ class MainWindow(QMainWindow):
         self.dashboard_page.set_current_user(user)
         
         # Show welcome message
-        QMessageBox.information(
-            self, 
-            "Welcome!", 
-            f"Welcome back, {user.first_name}!\n\nYou are now logged into your Personal Budget Management account."
-        )
+        self._notify("Welcome back, {}!".format(user.first_name), level="success")
     
     def handle_logout(self):
         """Handle user logout"""
@@ -206,15 +239,24 @@ class MainWindow(QMainWindow):
         self.main_pages.setCurrentWidget(self.profile_page)
     
     def handle_profile_updated(self, updated_user: User):
-        """Handle profile update"""
-        self.current_user = updated_user
+        """Handle profile update - refresh all pages"""
+        # Reload user data to ensure latest profile data
+        self.current_user = self.user_manager.get_user(updated_user.username)
         self.setWindowTitle(f"Personal Budget Management System - Welcome, {self.current_user.first_name}")
         self.status_bar.showMessage(f"Profile updated for {self.current_user.username}")
+        
+        # Refresh dashboard
+        if self.dashboard_page:
+            self.dashboard_page.current_user = self.current_user
+            self.dashboard_page.update_dashboard_stats()
     
     def handle_show_spending_analysis(self):
         """Handle request to show spending analysis"""
         if self.current_user is None:
             return
+        
+        # Reload user data to ensure latest transactions
+        self.current_user = self.user_manager.get_user(self.current_user.username)
         
         # Create budget analysis page if it doesn't exist
         if self.budget_analysis_page is None:
@@ -224,6 +266,9 @@ class MainWindow(QMainWindow):
         
         # Update with current user data
         self.budget_analysis_page.user = self.current_user
+        # Repopulate month filters with updated transactions
+        if hasattr(self.budget_analysis_page, '_populate_month_filters'):
+            self.budget_analysis_page._populate_month_filters()
         self.budget_analysis_page.update_analysis()
         
         # Switch to budget analysis page
@@ -233,6 +278,9 @@ class MainWindow(QMainWindow):
         """Handle request to show transactions"""
         if self.current_user is None:
             return
+        
+        # Reload user data to ensure latest transactions
+        self.current_user = self.user_manager.get_user(self.current_user.username)
         
         # Create transactions page if it doesn't exist
         if self.transactions_page is None:
@@ -250,25 +298,149 @@ class MainWindow(QMainWindow):
     
     def handle_show_budget_settings(self):
         """Handle request to show budget settings"""
-        QMessageBox.information(
-            self,
-            "Budget Settings",
-            "Budget settings feature will be implemented in future sprints.\n\nThis will include:\n- Set monthly budget limits\n- Create spending categories\n- Set budget goals\n- Configure notifications"
-        )
+        if self.current_user is None:
+            return
+        
+        # Reload user data to ensure latest settings
+        self.current_user = self.user_manager.get_user(self.current_user.username)
+        
+        # Create page if missing
+        if not hasattr(self, 'budget_settings_page') or self.budget_settings_page is None:
+            self.budget_settings_page = BudgetSettingsPage(self.current_user, self.user_manager)
+            self.budget_settings_page.go_back_to_dashboard.connect(self.show_dashboard)
+            self.budget_settings_page.saved.connect(self.handle_budget_settings_saved)
+            self.main_pages.addWidget(self.budget_settings_page)
+        # keep user reference fresh
+        self.budget_settings_page.user = self.current_user
+        self.main_pages.setCurrentWidget(self.budget_settings_page)
     
-    def handle_transactions_updated(self):
-        """Handle when transactions are updated"""
-        # Refresh dashboard stats
+    def handle_budget_settings_saved(self):
+        """Handle budget settings saved - refresh all pages"""
+        # Reload user data
+        self.current_user = self.user_manager.get_user(self.current_user.username)
+        
+        # Refresh dashboard
         if self.dashboard_page:
+            self.dashboard_page.current_user = self.current_user
             self.dashboard_page.update_dashboard_stats()
         
-        # Refresh budget analysis if it's currently shown
-        if self.budget_analysis_page and self.main_pages.currentWidget() == self.budget_analysis_page:
+        # Refresh budget analysis if it exists
+        if self.budget_analysis_page:
+            self.budget_analysis_page.user = self.current_user
             self.budget_analysis_page.update_analysis()
+        
+        # Refresh transactions page if it exists
+        if self.transactions_page:
+            self.transactions_page.user = self.current_user
+            self.transactions_page.refresh_table()
+        
+        self._notify("Budget settings saved.", level="success")
+    
+    def handle_transactions_updated(self):
+        """Handle when transactions are updated - refresh all pages"""
+        # Reload user data to ensure latest transactions
+        if self.current_user:
+            self.current_user = self.user_manager.get_user(self.current_user.username)
+        
+        # Refresh dashboard stats
+        if self.dashboard_page:
+            self.dashboard_page.current_user = self.current_user
+            # Repopulate month filter if it exists
+            if hasattr(self.dashboard_page, 'month_filter'):
+                self.dashboard_page._populate_month_filter()
+            self.dashboard_page.update_dashboard_stats()
+        
+        # Refresh budget analysis if it exists
+        if self.budget_analysis_page:
+            self.budget_analysis_page.user = self.current_user
+            # Repopulate month filters with updated transactions
+            if hasattr(self.budget_analysis_page, '_populate_month_filters'):
+                self.budget_analysis_page._populate_month_filters()
+            self.budget_analysis_page.update_analysis()
+        
+        # Refresh transactions page if it exists
+        if self.transactions_page:
+            self.transactions_page.user = self.current_user
+            self.transactions_page.refresh_table()
     
     def show_dashboard(self):
         """Show the dashboard page"""
+        # Reload user data to ensure latest data
+        if self.current_user:
+            self.current_user = self.user_manager.get_user(self.current_user.username)
+            self.dashboard_page.current_user = self.current_user
+            # Repopulate month filter if it exists
+            if hasattr(self.dashboard_page, 'month_filter'):
+                self.dashboard_page._populate_month_filter()
+            self.dashboard_page.update_dashboard_stats()
         self.main_pages.setCurrentWidget(self.dashboard_page)
+
+    def _notify(self, text: str, level: str = "info"):
+        if hasattr(self, 'banner') and self.banner is not None:
+            self.banner.show_message(text, level=level)
+
+    def _build_header(self) -> QWidget:
+        bar = QWidget()
+        bar.setObjectName("HeaderBar")
+        layout = QHBoxLayout()
+        layout.setContentsMargins(12, 8, 12, 8)
+        layout.setSpacing(8)
+
+        title = QLabel("Personal Budget Management")
+        title.setStyleSheet("font-size: 18px; font-weight: 700; color: #2c3e50;")
+        layout.addWidget(title)
+        layout.addStretch()
+
+        profile_btn = QPushButton("My Profile")
+        profile_btn.clicked.connect(self.show_profile)
+        logout_btn = QPushButton("Logout")
+        logout_btn.clicked.connect(self.handle_logout)
+        for b in (profile_btn, logout_btn):
+            b.setObjectName("HeaderBtn")
+        layout.addWidget(profile_btn)
+        layout.addWidget(logout_btn)
+
+        bar.setLayout(layout)
+        bar.setStyleSheet("#HeaderBar { background: #ffffff; border: 1px solid #e6e8eb; border-radius: 8px; }")
+        return bar
+
+    def _build_sidebar(self) -> QWidget:
+        side = QWidget()
+        side.setObjectName("Sidebar")
+        layout = QVBoxLayout()
+        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setSpacing(8)
+
+        def nav_btn(text, handler):
+            btn = QPushButton(text)
+            btn.setObjectName("NavBtn")
+            btn.setCheckable(False)
+            btn.clicked.connect(handler)
+            return btn
+
+        layout.addWidget(nav_btn("Dashboard", self.show_dashboard))
+        layout.addWidget(nav_btn("Transactions", self.handle_show_transactions))
+        layout.addWidget(nav_btn("Analysis", self.handle_show_spending_analysis))
+        layout.addWidget(nav_btn("Budget Settings", self.handle_show_budget_settings))
+        layout.addStretch()
+
+        side.setLayout(layout)
+        side.setStyleSheet("#Sidebar { background: #ffffff; border: 1px solid #e6e8eb; border-radius: 8px; min-width: 220px; }")
+        return side
+
+    def _build_footer(self) -> QWidget:
+        foot = QWidget()
+        foot.setObjectName("Footer")
+        layout = QHBoxLayout()
+        layout.setContentsMargins(12, 6, 12, 6)
+        layout.setSpacing(8)
+        label = QLabel("© Team 8 — Personal Budget Management")
+        label.setStyleSheet("color: #7f8c8d;")
+        layout.addWidget(label)
+        layout.addStretch()
+        foot.setLayout(layout)
+        foot.setStyleSheet("#Footer { background: #ffffff; border: 1px solid #e6e8eb; border-radius: 8px; }")
+        return foot
     
     def show_about(self):
         """Show about dialog"""
@@ -307,9 +479,17 @@ def main():
     
     # Set application style
     app.setStyleSheet("""
-        QApplication {
-            font-family: 'Segoe UI', Arial, sans-serif;
-        }
+        QApplication { font-family: 'Inter', 'Segoe UI', Arial, sans-serif; }
+        QWidget { font-size: 13px; }
+        QPushButton { padding: 9px 14px; border-radius: 8px; background: #2f6fed; color: #ffffff; border: none; }
+        QPushButton:hover { background: #245add; }
+        QPushButton#HeaderBtn { background: #f0f3f8; color: #2c3e50; }
+        QPushButton#HeaderBtn:hover { background: #e6eaf1; }
+        QPushButton#NavBtn { text-align: left; background: transparent; color: #2c3e50; padding: 10px 12px; }
+        QPushButton#NavBtn:hover { background: #f5f7fb; }
+        QTableWidget { selection-background-color: #e6efff; }
+        QHeaderView::section { background: #f5f7fb; color: #2c3e50; border: none; padding: 10px; font-weight: 600; }
+        QScrollArea { background: transparent; }
     """)
     
     window = MainWindow()
