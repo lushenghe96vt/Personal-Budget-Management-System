@@ -41,7 +41,7 @@ def send_sup_msg(user_email: str, user_msg: str):
 
 def main():
     """Demos the support mail functionality"""
-    send_sup_email("Testemail@mail.com", "This is a test message")
+    send_sup_msg("Testemail@mail.com", "This is a test message")
 
 
 if __name__ == "__main__":
