@@ -36,8 +36,10 @@ sys.path.insert(0, str(project_root))
 
 from core.categorize_edit import set_category, set_notes, CategoryRules
 from core.models import Transaction
-from models import User
+from ..models.user import User
 from core.exportWin import save_window_dialog
+from ..style import Styles
+from gui.widgets.components import PageHeader
 
 
 class TransactionEditDialog(QDialog):
@@ -54,7 +56,7 @@ class TransactionEditDialog(QDialog):
         """Setup the edit dialog UI"""
         self.setWindowTitle("Edit Transaction")
         self.setModal(True)
-        self.resize(500, 400)
+        self.setMinimumSize(500, 400)
         
         layout = QVBoxLayout()
         layout.setSpacing(20)
@@ -67,40 +69,25 @@ class TransactionEditDialog(QDialog):
         title_font.setPointSize(18)
         title_font.setBold(True)
         title_label.setFont(title_font)
-        title_label.setStyleSheet("color: #2c3e50; margin-bottom: 10px;")
+        title_label.setStyleSheet(Styles.LABEL_TITLE)
         layout.addWidget(title_label)
         
         # Transaction details (read-only)
         details_group = QGroupBox("Transaction Details")
-        details_group.setStyleSheet("""
-            QGroupBox {
-                font-weight: bold;
-                font-size: 14px;
-                color: #2c3e50;
-                border: 2px solid #bdc3c7;
-                border-radius: 8px;
-                padding: 15px;
-                margin-top: 10px;
-            }
-            QGroupBox::title {
-                subcontrol-origin: margin;
-                left: 10px;
-                padding: 0 5px 0 5px;
-            }
-        """)
+        details_group.setStyleSheet(Styles.GROUPBOX)
         
         details_layout = QFormLayout()
         details_layout.setSpacing(10)
         
         # Date
         date_label = QLabel(self.transaction.date.strftime("%Y-%m-%d"))
-        date_label.setStyleSheet("color: #7f8c8d;")
+        date_label.setStyleSheet(Styles.LABEL_SECONDARY)
         details_layout.addRow("Date:", date_label)
         
         # Description
         desc_label = QLabel(self.transaction.description)
         desc_label.setWordWrap(True)
-        desc_label.setStyleSheet("color: #2c3e50;")
+        desc_label.setStyleSheet(Styles.LABEL_BODY)
         details_layout.addRow("Description:", desc_label)
         
         # Amount
@@ -115,22 +102,7 @@ class TransactionEditDialog(QDialog):
         
         # Editable fields
         edit_group = QGroupBox("Edit Fields")
-        edit_group.setStyleSheet("""
-            QGroupBox {
-                font-weight: bold;
-                font-size: 14px;
-                color: #2c3e50;
-                border: 2px solid #bdc3c7;
-                border-radius: 8px;
-                padding: 15px;
-                margin-top: 10px;
-            }
-            QGroupBox::title {
-                subcontrol-origin: margin;
-                left: 10px;
-                padding: 0 5px 0 5px;
-            }
-        """)
+        edit_group.setStyleSheet(Styles.GROUPBOX)
         
         edit_layout = QFormLayout()
         edit_layout.setSpacing(15)
@@ -138,33 +110,13 @@ class TransactionEditDialog(QDialog):
         # Category selection
         self.category_combo = QComboBox()
         self.category_combo.addItems(self.available_categories)
-        self.category_combo.setStyleSheet("""
-            QComboBox {
-                padding: 8px;
-                border: 2px solid #ddd;
-                border-radius: 6px;
-                font-size: 14px;
-            }
-            QComboBox:focus {
-                border-color: #3498db;
-            }
-        """)
+        self.category_combo.setStyleSheet(Styles.COMBOBOX)
         edit_layout.addRow("Category:", self.category_combo)
         
         # Notes
         self.notes_text = QTextEdit()
         self.notes_text.setMaximumHeight(100)
-        self.notes_text.setStyleSheet("""
-            QTextEdit {
-                padding: 8px;
-                border: 2px solid #ddd;
-                border-radius: 6px;
-                font-size: 14px;
-            }
-            QTextEdit:focus {
-                border-color: #3498db;
-            }
-        """)
+        self.notes_text.setStyleSheet(Styles.TEXT_EDIT)
         edit_layout.addRow("Notes:", self.notes_text)
         
         edit_group.setLayout(edit_layout)
@@ -174,40 +126,14 @@ class TransactionEditDialog(QDialog):
         button_layout = QHBoxLayout()
         
         self.cancel_button = QPushButton("Cancel")
-        self.cancel_button.setStyleSheet("""
-            QPushButton {
-                background-color: #95a5a6;
-                color: white;
-                border: none;
-                padding: 10px 20px;
-                border-radius: 6px;
-                font-size: 14px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #7f8c8d;
-            }
-        """)
+        self.cancel_button.setStyleSheet(Styles.BUTTON_NEUTRAL)
         self.cancel_button.clicked.connect(self.reject)
         button_layout.addWidget(self.cancel_button)
         
         button_layout.addStretch()
         
         self.save_button = QPushButton("Save Changes")
-        self.save_button.setStyleSheet("""
-            QPushButton {
-                background-color: #27ae60;
-                color: white;
-                border: none;
-                padding: 10px 20px;
-                border-radius: 6px;
-                font-size: 14px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #229954;
-            }
-        """)
+        self.save_button.setStyleSheet(Styles.BUTTON_SUCCESS)
         self.save_button.clicked.connect(self.accept)
         button_layout.addWidget(self.save_button)
         
@@ -242,83 +168,59 @@ class TransactionsPage(QWidget):
         super().__init__()
         self.user = user
         self.user_manager = user_manager
-        self.available_categories = self.load_available_categories()
-        self.setup_ui()
-        self.populate_table()
+        
+        # Initialize with error handling
+        try:
+            self.available_categories = self.load_available_categories()
+            self.setup_ui()
+            self.populate_table()
+        except Exception as e:
+            # If initialization fails, show error but don't crash
+            import traceback
+            print(f"Error initializing TransactionsPage: {e}")
+            traceback.print_exc()
+            # Create a minimal UI to show error
+            layout = QVBoxLayout()
+            error_label = QLabel(f"Error loading transactions page: {str(e)}")
+            error_label.setStyleSheet("color: red; padding: 20px;")
+            layout.addWidget(error_label)
+            self.setLayout(layout)
     
     def setup_ui(self):
         """Setup the transactions page UI"""
-        layout = QVBoxLayout()
+        layout = QVBoxLayout(self)
         layout.setSpacing(20)
         layout.setContentsMargins(20, 20, 20, 20)
         
-        # Header row with back icon and title
-        header = QHBoxLayout()
-        self.back_button = QToolButton()
-        self.back_button.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_ArrowBack))
-        self.back_button.setAutoRaise(True)
-        self.back_button.setStyleSheet("QToolButton { padding-right: 8px; } QToolButton:hover { color: #245add; }")
-        self.back_button.clicked.connect(self.go_back_to_dashboard)
-        header.addWidget(self.back_button)
-        title_label = QLabel("Transaction Management")
-        title_font = QFont()
-        title_font.setPointSize(26)
-        title_font.setBold(True)
-        title_label.setFont(title_font)
-        title_label.setStyleSheet("color: #2c3e50;")
-        header.addWidget(title_label)
-        header.addStretch()
-        layout.addLayout(header)
+        # Header with back button and title
+        page_header = PageHeader("Transaction Management", show_back=True)
+        # Connect back button signal - use lambda to prevent immediate emission
+        page_header.back_clicked.connect(lambda: self.go_back_to_dashboard.emit())
+        layout.addWidget(page_header)
         
         # (Title moved into header)
         
         # Summary stats
         stats_layout = QHBoxLayout()
         
-        # Total transactions
-        total_txns = len(self.user.transactions)
-        total_label = QLabel(f"Total Transactions: {total_txns}")
-        total_label.setStyleSheet("""
-            QLabel {
-                background-color: #3498db;
-                color: white;
-                padding: 10px 15px;
-                border-radius: 6px;
-                font-weight: bold;
-            }
-        """)
-        stats_layout.addWidget(total_label)
+        # Store labels as instance variables so we can update them
+        self.total_label = QLabel("Total Transactions: 0")
+        self.total_label.setStyleSheet(Styles.STAT_LABEL_BLUE)
+        stats_layout.addWidget(self.total_label)
         
-        # Total spending
-        total_spending = sum(abs(t.amount) for t in self.user.transactions if t.amount < 0)
-        spending_label = QLabel(f"Total Spending: ${total_spending:.2f}")
-        spending_label.setStyleSheet("""
-            QLabel {
-                background-color: #e74c3c;
-                color: white;
-                padding: 10px 15px;
-                border-radius: 6px;
-                font-weight: bold;
-            }
-        """)
-        stats_layout.addWidget(spending_label)
+        self.spending_label = QLabel("Total Spending: $0.00")
+        self.spending_label.setStyleSheet(Styles.STAT_LABEL_RED)
+        stats_layout.addWidget(self.spending_label)
         
-        # Total income
-        total_income = sum(t.amount for t in self.user.transactions if t.amount > 0)
-        income_label = QLabel(f"Total Income: ${total_income:.2f}")
-        income_label.setStyleSheet("""
-            QLabel {
-                background-color: #27ae60;
-                color: white;
-                padding: 10px 15px;
-                border-radius: 6px;
-                font-weight: bold;
-            }
-        """)
-        stats_layout.addWidget(income_label)
+        self.income_label = QLabel("Total Income: $0.00")
+        self.income_label.setStyleSheet(Styles.STAT_LABEL_GREEN)
+        stats_layout.addWidget(self.income_label)
         
         stats_layout.addStretch()
         layout.addLayout(stats_layout)
+        
+        # Update summary stats
+        self._update_summary_stats()
         
         # Search and filter section + sort
         filter_layout = QHBoxLayout()
@@ -326,50 +228,16 @@ class TransactionsPage(QWidget):
         # Search box
         self.search_input = QLineEdit()
         self.search_input.setPlaceholderText("Search transactions...")
-        self.search_input.setStyleSheet("""
-            QLineEdit {
-                padding: 10px;
-                border: 2px solid #ddd;
-                border-radius: 6px;
-                font-size: 14px;
-            }
-            QLineEdit:focus {
-                border-color: #3498db;
-            }
-        """)
+        self.search_input.setStyleSheet(Styles.LINE_EDIT)
         self.search_input.textChanged.connect(self.filter_transactions)
         filter_layout.addWidget(QLabel("Search:"))
         filter_layout.addWidget(self.search_input)
-        
-        # Common dropdown styling
-        dropdown_style = """
-            QComboBox {
-                padding: 10px;
-                border: 2px solid #ddd;
-                border-radius: 6px;
-                font-size: 14px;
-                min-height: 20px;
-            }
-            QComboBox:focus {
-                border-color: #3498db;
-            }
-            QComboBox::drop-down {
-                border: none;
-                width: 20px;
-            }
-            QComboBox QAbstractItemView {
-                border: 2px solid #ddd;
-                border-radius: 6px;
-                selection-background-color: #3498db;
-                selection-color: white;
-            }
-        """
         
         # Category filter
         self.category_filter = QComboBox()
         self.category_filter.addItem("All Categories")
         self.category_filter.addItems(sorted(self.available_categories))
-        self.category_filter.setStyleSheet(dropdown_style)
+        self.category_filter.setStyleSheet(Styles.COMBOBOX)
         self.category_filter.currentTextChanged.connect(self.filter_transactions)
         filter_layout.addWidget(QLabel("Category:"))
         filter_layout.addWidget(self.category_filter)
@@ -377,11 +245,11 @@ class TransactionsPage(QWidget):
         # Sort controls
         self.sort_field = QComboBox()
         self.sort_field.addItems(["Date", "Category", "Description"])
-        self.sort_field.setStyleSheet(dropdown_style)
+        self.sort_field.setStyleSheet(Styles.COMBOBOX)
         
         self.sort_dir = QComboBox()
         self.sort_dir.addItems(["Descending", "Ascending"])
-        self.sort_dir.setStyleSheet(dropdown_style)
+        self.sort_dir.setStyleSheet(Styles.COMBOBOX)
         
         sort_btn = QPushButton("Sort")
         sort_btn.clicked.connect(self.sort_transactions)
@@ -394,9 +262,9 @@ class TransactionsPage(QWidget):
         
         # Transactions table
         self.table = QTableWidget()
-        self.table.setColumnCount(4)
+        self.table.setColumnCount(5)
         self.table.setHorizontalHeaderLabels([
-            "Date", "Description", "Category", "Actions"
+            "Date", "Description", "Category", "Amount", "Actions"
         ])
         
         # Configure table
@@ -404,28 +272,15 @@ class TransactionsPage(QWidget):
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)  # Date
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)  # Description
         header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)  # Category
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)  # Amount
         # Actions column: ResizeToContents but with minimum width
-        header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)  # Actions
+        header.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)  # Actions
         
         self.table.setAlternatingRowColors(True)
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
-        self.table.setStyleSheet("""
-            QTableWidget {
-                gridline-color: #ddd;
-                background-color: white;
-                alternate-background-color: #f8f9fa;
-            }
-            QHeaderView::section {
-                background-color: #34495e;
-                color: white;
-                padding: 10px;
-                border: none;
-                font-weight: bold;
-            }
-        """)
+        self.table.setStyleSheet(Styles.TABLE)
         
         layout.addWidget(self.table)
-        self.table.setStyleSheet("QTableWidget::item { padding: 10px; }")
         # Set minimum row height instead of fixed height (increased for better button visibility)
         self.table.verticalHeader().setMinimumSectionSize(50)
         self.table.verticalHeader().setDefaultSectionSize(50)
@@ -437,64 +292,25 @@ class TransactionsPage(QWidget):
         button_layout.addStretch()
 
         self.refresh_button = QPushButton("Refresh")
-        self.refresh_button.setStyleSheet("""
-            QPushButton {
-                background-color: #3498db;
-                color: white;
-                border: none;
-                padding: 10px 20px;
-                border-radius: 6px;
-                font-size: 14px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #2980b9;
-            }
-        """)
+        self.refresh_button.setStyleSheet(Styles.BUTTON_PRIMARY)
         self.refresh_button.clicked.connect(self.refresh_table)
         button_layout.addWidget(self.refresh_button)
         
         # controls remain on right
         
         self.export_button = QPushButton("Export Data")
-        self.export_button.setStyleSheet("""
-            QPushButton {
-                background-color: #9b59b6;
-                color: white;
-                border: none;
-                padding: 10px 20px;
-                border-radius: 6px;
-                font-size: 14px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #8e44ad;
-            }
-        """)
+        self.export_button.setStyleSheet(Styles.BUTTON_SECONDARY)
         self.export_button.clicked.connect(self.export_transactions)
         button_layout.addWidget(self.export_button)
         
         # Clear all transactions button
         self.clear_all_button = QPushButton("Clear All Transactions")
-        self.clear_all_button.setStyleSheet("""
-            QPushButton {
-                background-color: #e74c3c;
-                color: white;
-                border: none;
-                padding: 10px 20px;
-                border-radius: 6px;
-                font-size: 14px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #c0392b;
-            }
-        """)
+        self.clear_all_button.setStyleSheet(Styles.BUTTON_DANGER)
         self.clear_all_button.clicked.connect(self.clear_all_transactions)
         button_layout.addWidget(self.clear_all_button)
         
         layout.addLayout(button_layout)
-        self.setLayout(layout)
+        # Layout is already set via QVBoxLayout(self) constructor above
     
     def load_available_categories(self):
         """Load available categories from rules.json"""
@@ -508,7 +324,8 @@ class TransactionsPage(QWidget):
                     categories.add(category)
                 return sorted(list(categories))
         except Exception as e:
-            print(f"Error loading categories: {e}")
+            # Error loading categories
+            pass
         
         # Default categories if rules file not found
         return [
@@ -519,95 +336,126 @@ class TransactionsPage(QWidget):
     
     def populate_table(self):
         """Populate the table with user's transactions"""
-        transactions = self.user.transactions
+        # Ensure table exists
+        if not hasattr(self, 'table') or self.table is None:
+            return
+            
+        if not self.user or not hasattr(self.user, 'transactions'):
+            self.table.setRowCount(0)
+            return
+        
+        transactions = self.user.transactions or []
         
         # Sort by date (newest first)
-        transactions = sorted(transactions, key=lambda t: t.date, reverse=True)
+        try:
+            transactions = sorted(transactions, key=lambda t: t.date if hasattr(t, 'date') and t.date else datetime.min, reverse=True)
+        except Exception:
+            # Fallback if sorting fails
+            pass
         
         self.table.setRowCount(len(transactions))
         
         for row, txn in enumerate(transactions):
-            # Date
-            date_item = QTableWidgetItem(txn.date.strftime("%Y-%m-%d"))
+            # Date - with error handling
+            try:
+                date_str = txn.date.strftime("%Y-%m-%d") if hasattr(txn, 'date') and txn.date else "N/A"
+            except Exception:
+                date_str = "N/A"
+            date_item = QTableWidgetItem(date_str)
             self.table.setItem(row, 0, date_item)
             
-            # Description
-            desc_item = QTableWidgetItem(txn.description)
-            desc_item.setToolTip(txn.description_raw)
+            # Description - with error handling
+            desc = getattr(txn, 'description', '') or 'N/A'
+            desc_item = QTableWidgetItem(desc)
+            if hasattr(txn, 'description_raw') and txn.description_raw:
+                desc_item.setToolTip(txn.description_raw)
             self.table.setItem(row, 1, desc_item)
             
-            # Category
-            category_item = QTableWidgetItem(txn.category)
-            if txn.user_override:
+            # Category - with error handling
+            category = getattr(txn, 'category', '') or 'Uncategorized'
+            category_item = QTableWidgetItem(category)
+            if hasattr(txn, 'user_override') and txn.user_override:
                 category_item.setBackground(QColor("#fff3cd"))
             self.table.setItem(row, 2, category_item)
             
-            # Actions
-            actions_widget = QWidget()
-            actions_layout = QHBoxLayout()
-            # Increased margins for better padding and centering
-            actions_layout.setContentsMargins(10, 6, 10, 6)
-            # Increased spacing between buttons to prevent collision
-            actions_layout.setSpacing(12)
-            # Center both horizontally and vertically
-            actions_layout.setAlignment(Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter)
+            # Amount - with error handling and color coding
+            try:
+                amount = getattr(txn, 'amount', 0) or 0
+                amount_value = float(amount)
+                amount_sign = "-" if amount_value < 0 else "+"
+                amount_str = f"{amount_sign}${abs(amount_value):.2f}"
+                amount_item = QTableWidgetItem(amount_str)
+                
+                # Color code: red for expenses, green for income
+                if amount_value < 0:
+                    amount_item.setForeground(QColor("#e74c3c"))  # Red for expenses
+                else:
+                    amount_item.setForeground(QColor("#27ae60"))  # Green for income
+                
+                # Right align for better readability
+                amount_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+                amount_item.setFont(QFont("", -1, QFont.Weight.Bold))
+            except Exception:
+                amount_item = QTableWidgetItem("N/A")
+                amount_item.setForeground(QColor("#7f8c8d"))
+            self.table.setItem(row, 3, amount_item)
             
-            edit_button = QPushButton("Edit")
+            # Actions - Use simple QPushButton for better performance
+            actions_widget = QWidget()
+            actions_layout = QHBoxLayout(actions_widget)
+            actions_layout.setContentsMargins(4, 2, 4, 2)
+            actions_layout.setSpacing(4)
+            actions_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            
+            # Simple edit button
+            edit_button = QPushButton("📝")
+            edit_button.setToolTip("Edit transaction")
+            edit_button.setMaximumSize(32, 32)
             edit_button.setStyleSheet("""
                 QPushButton {
-                    background-color: #f39c12;
-                    color: white;
                     border: none;
-                    padding: 8px 14px;
-                    border-radius: 4px;
-                    font-size: 12px;
+                    background-color: transparent;
+                    color: #555555;
+                    font-size: 16px;
+                    padding: 4px;
                 }
                 QPushButton:hover {
-                    background-color: #e67e22;
+                    background-color: #f0f0f0;
+                    color: #3498db;
                 }
             """)
-            edit_button.setMinimumHeight(30)
-            edit_button.setMinimumWidth(75)
-            edit_button.setMaximumWidth(75)
             edit_button.clicked.connect(lambda checked, t=txn: self.edit_transaction(t))
             actions_layout.addWidget(edit_button)
             
-            delete_button = QPushButton("Delete")
+            # Simple delete button
+            delete_button = QPushButton("✕")
+            delete_button.setToolTip("Delete transaction")
+            delete_button.setMaximumSize(32, 32)
             delete_button.setStyleSheet("""
                 QPushButton {
-                    background-color: #e74c3c;
-                    color: white;
                     border: none;
-                    padding: 8px 14px;
-                    border-radius: 4px;
-                    font-size: 12px;
+                    background-color: transparent;
+                    color: #555555;
+                    font-size: 16px;
+                    font-weight: bold;
+                    padding: 4px;
                 }
                 QPushButton:hover {
-                    background-color: #c0392b;
+                    background-color: #f0f0f0;
+                    color: #e74c3c;
                 }
             """)
-            delete_button.setMinimumHeight(30)
-            delete_button.setMinimumWidth(75)
-            delete_button.setMaximumWidth(75)
             delete_button.clicked.connect(lambda checked, t=txn: self.delete_transaction(t))
             actions_layout.addWidget(delete_button)
             
             actions_widget.setLayout(actions_layout)
-            # Set minimum and preferred height for better vertical centering
-            actions_widget.setMinimumHeight(44)
-            actions_widget.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)
-            self.table.setCellWidget(row, 3, actions_widget)
+            self.table.setCellWidget(row, 4, actions_widget)
         
-        # Set minimum width for Actions column after populating
-        actions_col_width = self.table.columnWidth(3)
-        if actions_col_width < 160:
-            self.table.setColumnWidth(3, 160)
-        
-        # Ensure rows have flexible height with minimum (enough for action buttons)
-        for row in range(self.table.rowCount()):
-            height = self.table.rowHeight(row)
-            if height < 50:
-                self.table.setRowHeight(row, 50)
+        # Set appropriate width for Amount and Actions columns
+        self.table.setColumnWidth(3, 120)  # Amount column
+        self.table.setColumnWidth(4, 100)  # Actions column
+        # Standard row height
+        self.table.verticalHeader().setDefaultSectionSize(40)
 
         # Interactions
         from functools import partial
@@ -621,21 +469,32 @@ class TransactionsPage(QWidget):
     def open_edit_dialog_for_row(self, row: int):
         if row < 0:
             return
-        txns = sorted(self.user.transactions, key=lambda t: t.date, reverse=True)
-        if row >= len(txns):
+        if not self.user or not hasattr(self.user, 'transactions'):
             return
-        self.edit_transaction(txns[row])
+        try:
+            txns = sorted(self.user.transactions, key=lambda t: t.date if hasattr(t, 'date') and t.date else datetime.min, reverse=True)
+            if row >= len(txns):
+                return
+            self.edit_transaction(txns[row])
+        except Exception:
+            QMessageBox.warning(self, "Error", "Unable to load transaction for editing.")
 
     def open_details_dialog(self, row: int, col: int):
         if row < 0:
             return
-        txns = sorted(self.user.transactions, key=lambda t: t.date, reverse=True)
-        if row >= len(txns):
+        if not self.user or not hasattr(self.user, 'transactions'):
             return
-        t = txns[row]
+        try:
+            txns = sorted(self.user.transactions, key=lambda t: t.date if hasattr(t, 'date') and t.date else datetime.min, reverse=True)
+            if row >= len(txns):
+                return
+            t = txns[row]
+        except Exception:
+            QMessageBox.warning(self, "Error", "Unable to load transaction details.")
+            return
         dlg = QDialog(self)
         dlg.setWindowTitle("Transaction Details")
-        dlg.resize(520, 420)
+        dlg.setMinimumSize(520, 420)
         box = QVBoxLayout()
         box.setContentsMargins(16, 16, 16, 16)
         box.setSpacing(8)
@@ -643,7 +502,7 @@ class TransactionsPage(QWidget):
             h = QHBoxLayout()
             h.addWidget(QLabel(f"{label}:"))
             v = QLabel(value)
-            v.setStyleSheet("font-weight: 600; color: #2c3e50;")
+            v.setStyleSheet(Styles.LABEL_BODY)
             h.addWidget(v)
             h.addStretch()
             box.addLayout(h)
@@ -731,9 +590,43 @@ class TransactionsPage(QWidget):
                 self.refresh_table()
                 self.transaction_updated.emit()
     
+    def _update_summary_stats(self):
+        """Update the summary statistics labels"""
+        if not self.user:
+            return
+        
+        # Get transactions with error handling
+        transactions = getattr(self.user, 'transactions', []) or []
+        total_txns = len(transactions)
+        
+        # Total spending - with error handling
+        try:
+            total_spending = sum(abs(t.amount) for t in transactions if hasattr(t, 'amount') and t.amount and t.amount < 0)
+        except Exception:
+            total_spending = 0.0
+        
+        # Total income - with error handling
+        try:
+            total_income = sum(t.amount for t in transactions if hasattr(t, 'amount') and t.amount and t.amount > 0)
+        except Exception:
+            total_income = 0.0
+        
+        # Update labels
+        if hasattr(self, 'total_label'):
+            self.total_label.setText(f"Total Transactions: {total_txns}")
+        if hasattr(self, 'spending_label'):
+            self.spending_label.setText(f"Total Spending: ${total_spending:.2f}")
+        if hasattr(self, 'income_label'):
+            self.income_label.setText(f"Total Income: ${total_income:.2f}")
+    
     def refresh_table(self):
         """Refresh the transactions table"""
+        # Reload user data to get latest transactions
+        if self.user_manager and self.user:
+            self.user = self.user_manager.get_user(self.user.username)
         self.populate_table()
+        # Also update summary stats
+        self._update_summary_stats()
         self.filter_transactions()
 
     def sort_transactions(self):

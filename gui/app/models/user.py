@@ -30,6 +30,8 @@ project_root = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(project_root))
 
 from core.models import Transaction
+from core.analytics.goals import compute_goal_streak
+from core.analytics.spending import get_spending_by_category_dict
 
 
 @dataclass
@@ -294,16 +296,54 @@ class UserManager:
         return self._users.get(username)
     
     def add_transactions(self, username: str, transactions: List[Transaction]) -> tuple[bool, str]:
-        """Add transactions to a user's account"""
+        """Add transactions to a user's account, avoiding duplicates"""
         if not self.user_exists(username):
             return False, "User not found"
         
         user = self._users[username]
-        user.transactions.extend(transactions)
-        # Normalize statement months by upload grouping
-        self._normalize_statement_months(username)
-        self._save_users()
-        return True, f"Added {len(transactions)} transactions successfully!"
+        
+        # Get existing transaction IDs for duplicate detection
+        existing_ids = {t.id for t in user.transactions}
+        existing_keys = {
+            (t.date, t.amount, t.description) 
+            for t in user.transactions
+        }
+        
+        # Filter out duplicates based on ID and (date, amount, description) tuple
+        new_transactions = []
+        duplicates_count = 0
+        
+        for txn in transactions:
+            # Check if transaction ID already exists
+            if txn.id in existing_ids:
+                duplicates_count += 1
+                continue
+            
+            # Check if same transaction (date, amount, description) already exists
+            txn_key = (txn.date, txn.amount, txn.description)
+            if txn_key in existing_keys:
+                duplicates_count += 1
+                continue
+            
+            # New transaction - add it
+            new_transactions.append(txn)
+            existing_ids.add(txn.id)
+            existing_keys.add(txn_key)
+        
+        # Add only new transactions
+        if new_transactions:
+            user.transactions.extend(new_transactions)
+            # Normalize statement months by upload grouping
+            self._normalize_statement_months(username)
+            self._save_users()
+        
+        # Return message with duplicate info
+        if duplicates_count > 0:
+            message = f"Added {len(new_transactions)} new transactions. Skipped {duplicates_count} duplicates."
+        else:
+            message = f"Added {len(new_transactions)} transactions successfully!"
+        
+        return True, message
 
     def _normalize_statement_months(self, username: str) -> None:
         """Assign 'Month N' per upload group based on earliest date of each upload.
@@ -356,6 +396,37 @@ class UserManager:
                 if fallback_key in label_map:
                     t.statement_month = label_map[fallback_key]
     
+    def remove_duplicate_transactions(self, username: str) -> tuple[bool, str]:
+        """Remove duplicate transactions from a user's account"""
+        if not self.user_exists(username):
+            return False, "User not found"
+        
+        user = self._users[username]
+        original_count = len(user.transactions)
+        
+        # Use a set to track seen transactions by (date, amount, description, source_upload_id)
+        seen = set()
+        unique_transactions = []
+        duplicates_removed = 0
+        
+        for txn in user.transactions:
+            # Create a unique key for duplicate detection
+            # Include source_upload_id to allow same transaction from different uploads if needed
+            # But prefer keeping the one with more metadata (has upload_id, has category, etc.)
+            txn_key = (txn.date, txn.amount, txn.description, txn.source_upload_id or "")
+            
+            if txn_key not in seen:
+                seen.add(txn_key)
+                unique_transactions.append(txn)
+            else:
+                duplicates_removed += 1
+        
+        # Update user's transactions
+        user.transactions = unique_transactions
+        self._save_users()
+        
+        return True, f"Removed {duplicates_removed} duplicate transactions. {len(unique_transactions)} unique transactions remaining."
+    
     def update_transaction(self, username: str, transaction_id: str, **kwargs) -> tuple[bool, str]:
         """Update a specific transaction"""
         if not self.user_exists(username):
@@ -386,71 +457,22 @@ class UserManager:
         return self._users[username].transactions
 
     def recompute_goal_streak(self, username: str) -> int:
-        """Compute consecutive month savings-goal streak up to current month.
-        A month counts if (income - spending) >= monthly_savings_goal (if set).
-        """
+        """Compute consecutive month savings-goal streak using analytics module."""
         if not self.user_exists(username):
             return 0
         user = self._users[username]
-        if not user.monthly_savings_goal or user.monthly_savings_goal <= 0:
-            user.goal_streak_count = 0
-            self._save_users()
-            return 0
-
-        # aggregate per YYYY-MM
-        from collections import defaultdict
-        months = defaultdict(lambda: {"income": 0.0, "spend": 0.0})
-        for t in user.transactions:
-            key = t.date.strftime("%Y-%m")
-            if t.amount > 0:
-                months[key]["income"] += float(t.amount)
-            else:
-                months[key]["spend"] += float(abs(t.amount))
-
-        if not months:
-            user.goal_streak_count = 0
-            self._save_users()
-            return 0
-
-        # iterate from latest month backwards
-        ordered = sorted(months.items())
-        streak = 0
-        goal = float(user.monthly_savings_goal)
-        # ensure continuity: only count consecutive from latest
-        from datetime import datetime as _dt
-        latest_key = ordered[-1][0]
-        year, month = map(int, latest_key.split("-"))
-        def prev(y, m):
-            return (y - 1, 12) if m == 1 else (y, m - 1)
-
-        lookup = {k: v for k, v in ordered}
-        y, m = year, month
-        while True:
-            key = f"{y:04d}-{m:02d}"
-            if key not in lookup:
-                break
-            net = lookup[key]["income"] - lookup[key]["spend"]
-            if net >= goal:
-                streak += 1
-                y, m = prev(y, m)
-                continue
-            break
-
+        
+        from decimal import Decimal
+        goal = Decimal(str(user.monthly_savings_goal)) if user.monthly_savings_goal else None
+        
+        streak = compute_goal_streak(user.transactions, goal)
         user.goal_streak_count = streak
         self._save_users()
         return streak
     
     def get_spending_by_category(self, username: str) -> dict:
-        """Get spending totals by category for a user"""
+        """Get spending totals by category for a user using analytics module."""
         if not self.user_exists(username):
             return {}
         
-        category_totals = {}
-        for txn in self._users[username].transactions:
-            if txn.amount < 0:  # Only spending (negative amounts)
-                category = txn.category
-                if category not in category_totals:
-                    category_totals[category] = 0
-                category_totals[category] += abs(txn.amount)
-        
-        return category_totals
+        return get_spending_by_category_dict(self._users[username].transactions)

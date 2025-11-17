@@ -22,7 +22,9 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QFont
-from models import UserManager, User
+from ..models.user import UserManager, User
+from ..style import Styles
+from gui.widgets.components import PageHeader, SectionCard, StyledButton
 
 
 class ProfilePage(QWidget):
@@ -38,44 +40,19 @@ class ProfilePage(QWidget):
         self.load_user_data()
     
     def setup_ui(self):
-        """Setup the profile UI"""
+        """Setup the profile UI with unified styling"""
         layout = QVBoxLayout()
-        layout.setSpacing(20)
-        layout.setContentsMargins(30, 30, 30, 30)
+        layout.setSpacing(24)
+        layout.setContentsMargins(24, 24, 24, 24)
         
-        # Title
-        title_label = QLabel("My Profile")
-        title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        title_font = QFont()
-        title_font.setPointSize(24)
-        title_font.setBold(True)
-        title_label.setFont(title_font)
-        title_label.setStyleSheet("color: #2c3e50; margin-bottom: 10px;")
-        layout.addWidget(title_label)
+        # Header with back button and title
+        page_header = PageHeader("My Profile", show_back=True)
+        page_header.back_clicked.connect(self.go_back_to_dashboard.emit)
+        layout.addWidget(page_header)
         
         # Create tab widget
         self.tab_widget = QTabWidget()
-        self.tab_widget.setStyleSheet("""
-            QTabWidget::pane {
-                border: 2px solid #bdc3c7;
-                border-radius: 10px;
-                background-color: #f8f9fa;
-            }
-            QTabBar::tab {
-                background-color: #ecf0f1;
-                padding: 10px 20px;
-                margin-right: 2px;
-                border-top-left-radius: 8px;
-                border-top-right-radius: 8px;
-            }
-            QTabBar::tab:selected {
-                background-color: #3498db;
-                color: white;
-            }
-            QTabBar::tab:hover {
-                background-color: #d5dbdb;
-            }
-        """)
+        self.tab_widget.setStyleSheet(Styles.TAB_WIDGET)
         
         # Personal Information Tab
         self.personal_info_tab = self.create_personal_info_tab()
@@ -90,28 +67,7 @@ class ProfilePage(QWidget):
         self.tab_widget.addTab(self.stats_tab, "Account Statistics")
         
         layout.addWidget(self.tab_widget)
-        
-        # Back to Dashboard button
-        button_layout = QHBoxLayout()
-        self.back_button = QPushButton("🏠 Back to Dashboard")
-        self.back_button.setStyleSheet("""
-            QPushButton {
-                background-color: #95a5a6;
-                color: white;
-                border: none;
-                padding: 10px 20px;
-                border-radius: 6px;
-                font-size: 14px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #7f8c8d;
-            }
-        """)
-        self.back_button.clicked.connect(self.go_back_to_dashboard)
-        button_layout.addWidget(self.back_button)
-        button_layout.addStretch()
-        layout.addLayout(button_layout)
+        layout.addStretch()
         
         self.setLayout(layout)
     
@@ -123,124 +79,43 @@ class ProfilePage(QWidget):
         
         # Personal Information Group
         personal_group = QGroupBox("Personal Information")
-        personal_group.setStyleSheet("""
-            QGroupBox {
-                font-weight: bold;
-                font-size: 14px;
-                color: #2c3e50;
-                border: 2px solid #bdc3c7;
-                border-radius: 8px;
-                padding: 15px;
-                margin-top: 10px;
-            }
-            QGroupBox::title {
-                subcontrol-origin: margin;
-                left: 10px;
-                padding: 0 5px 0 5px;
-            }
-        """)
+        personal_group.setStyleSheet(Styles.GROUPBOX)
         
         form_layout = QFormLayout()
         form_layout.setSpacing(15)
         
         # First Name
         self.first_name_input = QLineEdit()
-        self.first_name_input.setStyleSheet("""
-            QLineEdit {
-                padding: 10px;
-                border: 2px solid #ddd;
-                border-radius: 5px;
-                font-size: 14px;
-            }
-            QLineEdit:focus {
-                border-color: #3498db;
-            }
-        """)
+        self.first_name_input.setStyleSheet(Styles.LINE_EDIT)
         form_layout.addRow("First Name:", self.first_name_input)
         
         # Last Name
         self.last_name_input = QLineEdit()
-        self.last_name_input.setStyleSheet("""
-            QLineEdit {
-                padding: 10px;
-                border: 2px solid #ddd;
-                border-radius: 5px;
-                font-size: 14px;
-            }
-            QLineEdit:focus {
-                border-color: #3498db;
-            }
-        """)
+        self.last_name_input.setStyleSheet(Styles.LINE_EDIT)
         form_layout.addRow("Last Name:", self.last_name_input)
         
         # Username (read-only)
         self.username_input = QLineEdit()
         self.username_input.setReadOnly(True)
-        self.username_input.setStyleSheet("""
-            QLineEdit {
-                padding: 10px;
-                border: 2px solid #ddd;
-                border-radius: 5px;
-                font-size: 14px;
-                background-color: #ecf0f1;
-                color: #7f8c8d;
-            }
-        """)
+        self.username_input.setStyleSheet(Styles.LINE_EDIT_READONLY)
         form_layout.addRow("Username:", self.username_input)
         
         # Email
         self.email_input = QLineEdit()
-        self.email_input.setStyleSheet("""
-            QLineEdit {
-                padding: 10px;
-                border: 2px solid #ddd;
-                border-radius: 5px;
-                font-size: 14px;
-            }
-            QLineEdit:focus {
-                border-color: #3498db;
-            }
-        """)
+        self.email_input.setStyleSheet(Styles.LINE_EDIT)
         form_layout.addRow("Email:", self.email_input)
         
         # Phone
         self.phone_input = QLineEdit()
         self.phone_input.setPlaceholderText("Optional")
-        self.phone_input.setStyleSheet("""
-            QLineEdit {
-                padding: 10px;
-                border: 2px solid #ddd;
-                border-radius: 5px;
-                font-size: 14px;
-            }
-            QLineEdit:focus {
-                border-color: #3498db;
-            }
-        """)
+        self.phone_input.setStyleSheet(Styles.LINE_EDIT)
         form_layout.addRow("Phone:", self.phone_input)
         
         personal_group.setLayout(form_layout)
         layout.addWidget(personal_group)
         
         # Update button
-        self.update_personal_button = QPushButton("Update Personal Information")
-        self.update_personal_button.setStyleSheet("""
-            QPushButton {
-                background-color: #3498db;
-                color: white;
-                border: none;
-                padding: 12px;
-                border-radius: 6px;
-                font-size: 14px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #2980b9;
-            }
-            QPushButton:pressed {
-                background-color: #21618c;
-            }
-        """)
+        self.update_personal_button = StyledButton("Update Personal Information", StyledButton.PRIMARY)
         self.update_personal_button.clicked.connect(self.update_personal_info)
         layout.addWidget(self.update_personal_button)
         
@@ -256,22 +131,7 @@ class ProfilePage(QWidget):
         
         # Change Password Group
         password_group = QGroupBox("Change Password")
-        password_group.setStyleSheet("""
-            QGroupBox {
-                font-weight: bold;
-                font-size: 14px;
-                color: #2c3e50;
-                border: 2px solid #bdc3c7;
-                border-radius: 8px;
-                padding: 15px;
-                margin-top: 10px;
-            }
-            QGroupBox::title {
-                subcontrol-origin: margin;
-                left: 10px;
-                padding: 0 5px 0 5px;
-            }
-        """)
+        password_group.setStyleSheet(Styles.GROUPBOX)
         
         form_layout = QFormLayout()
         form_layout.setSpacing(15)
@@ -280,75 +140,28 @@ class ProfilePage(QWidget):
         self.current_password_input = QLineEdit()
         self.current_password_input.setEchoMode(QLineEdit.EchoMode.Password)
         self.current_password_input.setPlaceholderText("Enter current password")
-        self.current_password_input.setStyleSheet("""
-            QLineEdit {
-                padding: 10px;
-                border: 2px solid #ddd;
-                border-radius: 5px;
-                font-size: 14px;
-            }
-            QLineEdit:focus {
-                border-color: #3498db;
-            }
-        """)
+        self.current_password_input.setStyleSheet(Styles.LINE_EDIT)
         form_layout.addRow("Current Password:", self.current_password_input)
         
         # New Password
         self.new_password_input = QLineEdit()
         self.new_password_input.setEchoMode(QLineEdit.EchoMode.Password)
         self.new_password_input.setPlaceholderText("Enter new password")
-        self.new_password_input.setStyleSheet("""
-            QLineEdit {
-                padding: 10px;
-                border: 2px solid #ddd;
-                border-radius: 5px;
-                font-size: 14px;
-            }
-            QLineEdit:focus {
-                border-color: #3498db;
-            }
-        """)
+        self.new_password_input.setStyleSheet(Styles.LINE_EDIT)
         form_layout.addRow("New Password:", self.new_password_input)
         
         # Confirm New Password
         self.confirm_password_input = QLineEdit()
         self.confirm_password_input.setEchoMode(QLineEdit.EchoMode.Password)
         self.confirm_password_input.setPlaceholderText("Confirm new password")
-        self.confirm_password_input.setStyleSheet("""
-            QLineEdit {
-                padding: 10px;
-                border: 2px solid #ddd;
-                border-radius: 5px;
-                font-size: 14px;
-            }
-            QLineEdit:focus {
-                border-color: #3498db;
-            }
-        """)
+        self.confirm_password_input.setStyleSheet(Styles.LINE_EDIT)
         form_layout.addRow("Confirm Password:", self.confirm_password_input)
         
         password_group.setLayout(form_layout)
         layout.addWidget(password_group)
         
         # Change password button
-        self.change_password_button = QPushButton("Change Password")
-        self.change_password_button.setStyleSheet("""
-            QPushButton {
-                background-color: #e74c3c;
-                color: white;
-                border: none;
-                padding: 12px;
-                border-radius: 6px;
-                font-size: 14px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #c0392b;
-            }
-            QPushButton:pressed {
-                background-color: #a93226;
-            }
-        """)
+        self.change_password_button = StyledButton("Change Password", StyledButton.DANGER)
         self.change_password_button.clicked.connect(self.change_password)
         layout.addWidget(self.change_password_button)
         
@@ -364,22 +177,7 @@ class ProfilePage(QWidget):
         
         # Account Statistics Group
         stats_group = QGroupBox("Account Statistics")
-        stats_group.setStyleSheet("""
-            QGroupBox {
-                font-weight: bold;
-                font-size: 14px;
-                color: #2c3e50;
-                border: 2px solid #bdc3c7;
-                border-radius: 8px;
-                padding: 15px;
-                margin-top: 10px;
-            }
-            QGroupBox::title {
-                subcontrol-origin: margin;
-                left: 10px;
-                padding: 0 5px 0 5px;
-            }
-        """)
+        stats_group.setStyleSheet(Styles.GROUPBOX)
         
         form_layout = QFormLayout()
         form_layout.setSpacing(15)
@@ -387,72 +185,23 @@ class ProfilePage(QWidget):
         # Username (read-only)
         self.username_display = QLineEdit()
         self.username_display.setReadOnly(True)
-        self.username_display.setStyleSheet("""
-            QLineEdit {
-                padding: 10px;
-                border: 2px solid #ddd;
-                border-radius: 5px;
-                font-size: 14px;
-                background-color: #ecf0f1;
-            }
-        """)
+        self.username_display.setStyleSheet(Styles.LINE_EDIT_READONLY)
         form_layout.addRow("Username:", self.username_display)
         
         # Account Created (read-only)
         self.created_display = QLineEdit()
         self.created_display.setReadOnly(True)
-        self.created_display.setStyleSheet("""
-            QLineEdit {
-                padding: 10px;
-                border: 2px solid #ddd;
-                border-radius: 5px;
-                font-size: 14px;
-                background-color: #ecf0f1;
-            }
-        """)
+        self.created_display.setStyleSheet(Styles.LINE_EDIT_READONLY)
         form_layout.addRow("Account Created:", self.created_display)
         
         # Last Login (read-only)
         self.last_login_display = QLineEdit()
         self.last_login_display.setReadOnly(True)
-        self.last_login_display.setStyleSheet("""
-            QLineEdit {
-                padding: 10px;
-                border: 2px solid #ddd;
-                border-radius: 5px;
-                font-size: 14px;
-                background-color: #ecf0f1;
-            }
-        """)
+        self.last_login_display.setStyleSheet(Styles.LINE_EDIT_READONLY)
         form_layout.addRow("Last Login:", self.last_login_display)
         
         stats_group.setLayout(form_layout)
         layout.addWidget(stats_group)
-        
-        # Additional Info
-        info_label = QLabel("""
-        <h3>Account Information</h3>
-        <p>Your account is part of Team 8's Personal Budget Management System.</p>
-        <p>As a registered user, you have access to:</p>
-        <ul>
-            <li>Personalized budget tracking</li>
-            <li>Data persistence across sessions</li>
-            <li>Advanced notification settings</li>
-            <li>Historical data access</li>
-            <li>Custom spending categories</li>
-        </ul>
-        """)
-        info_label.setStyleSheet("""
-            QLabel {
-                background-color: #e8f4f8;
-                border: 1px solid #bee5eb;
-                border-radius: 5px;
-                padding: 15px;
-                color: #0c5460;
-            }
-        """)
-        info_label.setWordWrap(True)
-        layout.addWidget(info_label)
         
         layout.addStretch()
         tab.setLayout(layout)
