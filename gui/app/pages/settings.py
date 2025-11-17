@@ -1,9 +1,12 @@
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton,
-    QGroupBox, QFormLayout, QTableWidget, QTableWidgetItem, QHeaderView, QMessageBox, QDialog, QTextEdit, QToolButton, QStyle
+    QGroupBox, QFormLayout, QTableWidget, QTableWidgetItem, QHeaderView, 
+    QMessageBox, QDialog, QTextEdit, QToolButton, QStyle
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QFont
+from gui.widgets.components import SectionCard
+from gui.app.style import Styles
 
 
 class BudgetSettingsPage(QWidget):
@@ -20,77 +23,92 @@ class BudgetSettingsPage(QWidget):
         self._load_from_user()
 
     def _build_ui(self):
-        layout = QVBoxLayout()
+        layout = QVBoxLayout(self)
         layout.setContentsMargins(20, 20, 20, 20)
-        layout.setSpacing(16)
+        layout.setSpacing(20)
 
-        # Header row with back icon and title
-        header = QHBoxLayout()
-        back_btn_top = QToolButton()
-        back_btn_top.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_ArrowBack))
-        back_btn_top.setAutoRaise(True)
-        back_btn_top.setStyleSheet("QToolButton { padding-right: 8px; }")
-        back_btn_top.clicked.connect(self.go_back_to_dashboard.emit)
-        header.addWidget(back_btn_top)
-        title = QLabel("Budget Settings")
-        title.setAlignment(Qt.AlignmentFlag.AlignLeft)
-        f = QFont()
-        f.setPointSize(26)
-        f.setBold(True)
-        title.setFont(f)
-        title.setStyleSheet("color: #2c3e50;")
-        header.addWidget(title)
-        header.addStretch()
-        layout.addLayout(header)
+        # Header with back button and title - use common PageHeader
+        from gui.widgets.components import PageHeader
+        page_header = PageHeader("Budget Settings", show_back=True)
+        page_header.back_clicked.connect(self.go_back_to_dashboard.emit)
+        layout.addWidget(page_header)
 
-        # Overall goals
-        overall_group = QGroupBox("Overall Monthly Goals")
+        # Content layout (two columns - left smaller, right larger)
+        content_layout = QHBoxLayout()
+        content_layout.setSpacing(20)
+
+        # Overall Monthly Goals (left side - smaller, top-aligned)
+        overall_section = SectionCard("Overall Monthly Goals")
+        overall_section.setStyleSheet(Styles.GROUPBOX)
+        # Ensure content is top-aligned (not vertically centered)
+        overall_section.content_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+        
         form = QFormLayout()
+        form.setSpacing(16)
+        form.setContentsMargins(0, 0, 0, 0)
+        form.setLabelAlignment(Qt.AlignmentFlag.AlignLeft)  # Left-align labels
+        
         self.spending_limit_input = QLineEdit()
         self.spending_limit_input.setPlaceholderText("e.g., 1500.00")
+        self.spending_limit_input.setStyleSheet(Styles.SEARCH_INPUT)
         self.savings_goal_input = QLineEdit()
         self.savings_goal_input.setPlaceholderText("e.g., 500.00")
+        self.savings_goal_input.setStyleSheet(Styles.SEARCH_INPUT)
+        
         form.addRow("Monthly Spending Limit ($)", self.spending_limit_input)
         form.addRow("Monthly Savings Goal ($)", self.savings_goal_input)
-        overall_group.setLayout(form)
-        layout.addWidget(overall_group)
+        
+        overall_section.content_layout.addLayout(form)
+        # Add stretch at bottom to push content to top
+        overall_section.content_layout.addStretch()
+        # Set smaller stretch factor (1) vs right side (2) = 33% vs 67% split
+        content_layout.addWidget(overall_section, 1)  # Smaller width
 
-        # Per-category limits table
-        per_cat_group = QGroupBox("Per-Category Limits (optional)")
+        # Per-Category Limits (right side - larger)
+        per_cat_section = SectionCard("Per-Category Limits")
+        per_cat_section.setStyleSheet(Styles.GROUPBOX)
+        
+        per_cat_layout = QVBoxLayout()
+        per_cat_layout.setSpacing(12)
+        
         self.per_cat_table = QTableWidget(0, 2)
         self.per_cat_table.setHorizontalHeaderLabels(["Category", "Limit ($)"])
         header = self.per_cat_table.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
-        per_cat_layout = QVBoxLayout()
+        self.per_cat_table.setStyleSheet(Styles.TABLE)
         per_cat_layout.addWidget(self.per_cat_table)
 
         row_btns = QHBoxLayout()
+        row_btns.setSpacing(8)
         add_row = QPushButton("Add Row")
+        add_row.setStyleSheet(Styles.BUTTON_SECONDARY)
         remove_row = QPushButton("Remove Selected")
+        remove_row.setStyleSheet(Styles.BUTTON_SECONDARY)
         add_row.clicked.connect(self._add_row)
         remove_row.clicked.connect(self._remove_selected_row)
         row_btns.addWidget(add_row)
         row_btns.addWidget(remove_row)
         row_btns.addStretch()
         per_cat_layout.addLayout(row_btns)
-        per_cat_group.setLayout(per_cat_layout)
-        layout.addWidget(per_cat_group)
+        
+        per_cat_section.content_layout.addLayout(per_cat_layout)
+        content_layout.addWidget(per_cat_section, 2)  # Larger width (2x stretch)
+
+        layout.addLayout(content_layout)
 
         # Actions
         actions = QHBoxLayout()
         save_btn = QPushButton("Save Settings")
-        save_btn.setStyleSheet("background-color: #27ae60; color: white; padding: 10px 16px; border: none; border-radius: 6px; font-weight: 600;")
-        support_btn = QPushButton("📧 Contact Support")
-        support_btn.setStyleSheet("background-color: #3498db; color: white; padding: 10px 16px; border: none; border-radius: 6px; font-weight: 600;")
+        save_btn.setStyleSheet(Styles.BUTTON_SUCCESS)
+        support_btn = QPushButton("Contact Support")
+        support_btn.setStyleSheet(Styles.BUTTON_SECONDARY)
         save_btn.clicked.connect(self._save)
         support_btn.clicked.connect(self._open_support_dialog)
         actions.addWidget(save_btn)
         actions.addWidget(support_btn)
         actions.addStretch()
         layout.addLayout(actions)
-
-        self.setLayout(layout)
 
     def _load_from_user(self):
         if self.user is None:
@@ -163,7 +181,7 @@ class SupportEmailDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Contact Support")
-        self.setMinimumWidth(420)
+        # Removed fixed width for responsiveness
 
         layout = QVBoxLayout()
         layout.setContentsMargins(16, 16, 16, 16)

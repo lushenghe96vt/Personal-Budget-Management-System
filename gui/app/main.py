@@ -17,40 +17,46 @@ Implements:
 
 from PyQt6.QtWidgets import QApplication, QMainWindow, QStackedWidget, QStatusBar, QMessageBox, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QFrame
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QAction
+from PyQt6.QtGui import QAction, QFont
 import sys
 import os
+import argparse
 
 # Add the app directory to the Python path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from models import UserManager, User
 from pathlib import Path
-from pages.auth import AuthWidget
-from pages.profile import ProfilePage
-from pages.dashboard import DashboardPage
-from pages.transactions import TransactionsPage
-from pages.budgets import BudgetAnalysisPage
-from pages.settings import BudgetSettingsPage
-from widgets import NotificationBanner
+from .models.user import UserManager, User
+from .pages.auth import AuthWidget
+from .pages.profile import ProfilePage
+from .pages.dashboard import DashboardPage
+from .pages.transactions import TransactionsPage
+from .budgets import BudgetAnalysisPage
+from .pages.settings import BudgetSettingsPage
+from .widgets import NotificationBanner
 
 
 class MainWindow(QMainWindow):
     """Main application window with authentication and main app functionality"""
     
-    def __init__(self):
+    def __init__(self, dev_mode: bool = False):
         super().__init__()
         # Ensure we read/write users from gui/data/users.json
         data_dir = str(Path(__file__).resolve().parent.parent / "data")
         self.user_manager = UserManager(data_dir=data_dir)
         self.current_user = None
+        self.dev_mode = dev_mode
         self.setup_ui()
-        self.show_auth()
+        
+        if dev_mode:
+            # Auto-login with test user in dev mode
+            self._auto_login_dev()
+        else:
+            self.show_auth()
     
     def setup_ui(self):
         """Setup the main UI"""
         self.setWindowTitle("Personal Budget Management System")
-        self.resize(1000, 700)
         self.setMinimumSize(800, 600)
         
         # Set application style
@@ -80,6 +86,8 @@ class MainWindow(QMainWindow):
         # Initialize page references
         self.transactions_page = None
         self.budget_analysis_page = None
+        self.budget_settings_page = None
+        self.profile_page = None
         
         # Status bar
         self.status_bar = QStatusBar()
@@ -180,6 +188,34 @@ class MainWindow(QMainWindow):
         # Profile page
         self.profile_page = None  # Will be created when needed
     
+    def _auto_login_dev(self):
+        """Auto-login with test user in development mode"""
+        test_username = "dev"
+        test_password = "dev123"
+        
+        # Check if test user exists, create if not
+        if not self.user_manager.user_exists(test_username):
+            success, message = self.user_manager.create_user(
+                username=test_username,
+                email="dev@example.com",
+                password=test_password,
+                first_name="Dev",
+                last_name="User"
+            )
+            if not success:
+                print(f"Warning: Could not create dev user: {message}")
+                self.show_auth()
+                return
+        
+        # Authenticate and login
+        success, message, user = self.user_manager.authenticate_user(test_username, test_password)
+        if success and user:
+            self.handle_login_success(user)
+            self.status_bar.showMessage("DEV MODE: Auto-logged in as 'dev'")
+        else:
+            print(f"Warning: Could not auto-login: {message}")
+            self.show_auth()
+    
     def show_auth(self):
         """Show authentication screen"""
         self.stacked_widget.setCurrentWidget(self.auth_widget)
@@ -194,16 +230,36 @@ class MainWindow(QMainWindow):
     
     def handle_login_success(self, user: User):
         """Handle successful login"""
-        self.current_user = user
+        # Reload user from manager to ensure fresh data
+        self.current_user = self.user_manager.get_user(user.username)
+        if not self.current_user:
+            self.current_user = user
+        
         self.show_main_app()
         
-        # Update dashboard with current user and user manager
-        self.dashboard_page.current_user = user
-        self.dashboard_page.user_manager = self.user_manager
-        self.dashboard_page.set_current_user(user)
+        # Clear and recreate pages to ensure fresh data for new user
+        # This prevents showing old user's data
+        if hasattr(self, 'dashboard_page') and self.dashboard_page:
+            self.dashboard_page.current_user = None
+        if hasattr(self, 'transactions_page') and self.transactions_page:
+            self.transactions_page.user = None
+        if hasattr(self, 'budget_analysis_page') and self.budget_analysis_page:
+            self.budget_analysis_page.user = None
+        if hasattr(self, 'budget_settings_page') and self.budget_settings_page:
+            self.budget_settings_page.user = None
+        if hasattr(self, 'profile_page') and self.profile_page:
+            self.profile_page.current_user = None
         
-        # Show welcome message
-        self._notify("Welcome back, {}!".format(user.first_name), level="success")
+        # Update dashboard with current user and user manager
+        self.dashboard_page.current_user = self.current_user
+        self.dashboard_page.user_manager = self.user_manager
+        self.dashboard_page.set_current_user(self.current_user)
+        
+        # Update sidebar welcome message
+        self._update_sidebar_welcome(self.current_user)
+        
+        # Show welcome notification
+        self._notify("Welcome back, {}!".format(self.current_user.first_name), level="success")
     
     def handle_logout(self):
         """Handle user logout"""
@@ -216,7 +272,26 @@ class MainWindow(QMainWindow):
         )
         
         if reply == QMessageBox.StandardButton.Yes:
+            # Clear all page references to prevent showing old user data
+            if hasattr(self, 'dashboard_page') and self.dashboard_page:
+                self.dashboard_page.current_user = None
+            if hasattr(self, 'transactions_page') and self.transactions_page:
+                self.transactions_page.user = None
+            if hasattr(self, 'budget_analysis_page') and self.budget_analysis_page:
+                self.budget_analysis_page.user = None
+            if hasattr(self, 'budget_settings_page') and self.budget_settings_page:
+                self.budget_settings_page.user = None
+            if hasattr(self, 'profile_page') and self.profile_page:
+                self.profile_page.current_user = None
+            
+            # Clear current user
             self.current_user = None
+            
+            # Reset window title
+            self.setWindowTitle("Personal Budget Management System")
+            self.status_bar.showMessage("Logged out")
+            
+            # Show auth screen
             self.show_auth()
     
     def show_profile(self):
@@ -244,6 +319,9 @@ class MainWindow(QMainWindow):
         self.current_user = self.user_manager.get_user(updated_user.username)
         self.setWindowTitle(f"Personal Budget Management System - Welcome, {self.current_user.first_name}")
         self.status_bar.showMessage(f"Profile updated for {self.current_user.username}")
+        
+        # Update sidebar welcome message
+        self._update_sidebar_welcome(self.current_user)
         
         # Refresh dashboard
         if self.dashboard_page:
@@ -279,22 +357,49 @@ class MainWindow(QMainWindow):
         if self.current_user is None:
             return
         
-        # Reload user data to ensure latest transactions
-        self.current_user = self.user_manager.get_user(self.current_user.username)
-        
-        # Create transactions page if it doesn't exist
-        if self.transactions_page is None:
-            self.transactions_page = TransactionsPage(self.current_user, self.user_manager)
-            self.transactions_page.transaction_updated.connect(self.handle_transactions_updated)
-            self.transactions_page.go_back_to_dashboard.connect(self.show_dashboard)
-            self.main_pages.addWidget(self.transactions_page)
-        
-        # Update with current user data
-        self.transactions_page.user = self.current_user
-        self.transactions_page.refresh_table()
-        
-        # Switch to transactions page
-        self.main_pages.setCurrentWidget(self.transactions_page)
+        try:
+            # Reload user data to ensure latest transactions
+            self.current_user = self.user_manager.get_user(self.current_user.username)
+            
+            # Create transactions page if it doesn't exist
+            if self.transactions_page is None:
+                self.transactions_page = TransactionsPage(self.current_user, self.user_manager)
+                self.transactions_page.transaction_updated.connect(self.handle_transactions_updated)
+                self.transactions_page.go_back_to_dashboard.connect(self.show_dashboard)
+                self.main_pages.addWidget(self.transactions_page)
+            else:
+                # Check if user changed (compare usernames to avoid object comparison issues)
+                old_username = getattr(self.transactions_page.user, 'username', None) if self.transactions_page.user else None
+                new_username = getattr(self.current_user, 'username', None) if self.current_user else None
+                
+                if old_username != new_username:
+                    # User changed - recreate page
+                    self.main_pages.removeWidget(self.transactions_page)
+                    self.transactions_page.deleteLater()
+                    self.transactions_page = None
+                    
+                    self.transactions_page = TransactionsPage(self.current_user, self.user_manager)
+                    self.transactions_page.transaction_updated.connect(self.handle_transactions_updated)
+                    self.transactions_page.go_back_to_dashboard.connect(self.show_dashboard)
+                    self.main_pages.addWidget(self.transactions_page)
+                else:
+                    # Same user - just update and refresh
+                    self.transactions_page.user = self.current_user
+                    if hasattr(self.transactions_page, 'refresh_table'):
+                        self.transactions_page.refresh_table()
+            
+            # Switch to transactions page
+            self.main_pages.setCurrentWidget(self.transactions_page)
+            
+            # Ensure the page is visible
+            self.transactions_page.show()
+            self.transactions_page.setVisible(True)
+            
+        except Exception as e:
+            import traceback
+            print(f"Error showing transactions page: {e}")
+            traceback.print_exc()
+            QMessageBox.critical(self, "Error", f"Failed to load transactions page: {str(e)}")
     
     def handle_show_budget_settings(self):
         """Handle request to show budget settings"""
@@ -362,7 +467,7 @@ class MainWindow(QMainWindow):
         if self.transactions_page:
             self.transactions_page.user = self.current_user
             self.transactions_page.refresh_table()
-    
+
     def show_dashboard(self):
         """Show the dashboard page"""
         # Reload user data to ensure latest data
@@ -380,15 +485,18 @@ class MainWindow(QMainWindow):
             self.banner.show_message(text, level=level)
 
     def _build_header(self) -> QWidget:
+        from gui.widgets.components import MainHeader
+        
         bar = QWidget()
         bar.setObjectName("HeaderBar")
         layout = QHBoxLayout()
-        layout.setContentsMargins(12, 8, 12, 8)
+        # Increased margins: left, top, right, bottom - more space on left and right
+        layout.setContentsMargins(24, 16, 24, 16)
         layout.setSpacing(8)
 
-        title = QLabel("Personal Budget Management")
-        title.setStyleSheet("font-size: 18px; font-weight: 700; color: #2c3e50;")
-        layout.addWidget(title)
+        # Use common MainHeader component
+        main_header = MainHeader()
+        layout.addWidget(main_header)
         layout.addStretch()
 
         profile_btn = QPushButton("My Profile")
@@ -401,15 +509,52 @@ class MainWindow(QMainWindow):
         layout.addWidget(logout_btn)
 
         bar.setLayout(layout)
-        bar.setStyleSheet("#HeaderBar { background: #ffffff; border: 1px solid #e6e8eb; border-radius: 8px; }")
+        # Remove any height constraints and allow header to size naturally
+        bar.setStyleSheet("""
+            #HeaderBar { 
+                background: #ffffff; 
+                border: 1px solid #e6e8eb; 
+                border-radius: 8px;
+            }
+        """)
         return bar
 
     def _build_sidebar(self) -> QWidget:
         side = QWidget()
         side.setObjectName("Sidebar")
         layout = QVBoxLayout()
-        layout.setContentsMargins(12, 12, 12, 12)
-        layout.setSpacing(8)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(12)
+
+        # Welcome message at the top
+        self.sidebar_welcome_label = QLabel("Welcome!")
+        self.sidebar_welcome_label.setObjectName("SidebarWelcome")
+        welcome_font = QFont()
+        welcome_font.setPointSize(18)
+        welcome_font.setBold(True)
+        self.sidebar_welcome_label.setFont(welcome_font)
+        self.sidebar_welcome_label.setStyleSheet("""
+            QLabel#SidebarWelcome {
+                color: #2c3e50;
+                padding: 8px 0px;
+                margin-bottom: 4px;
+            }
+        """)
+        layout.addWidget(self.sidebar_welcome_label)
+
+        # Separator line
+        separator = QFrame()
+        separator.setFrameShape(QFrame.Shape.HLine)
+        separator.setFrameShadow(QFrame.Shadow.Sunken)
+        separator.setStyleSheet("""
+            QFrame {
+                color: #e6e8eb;
+                background-color: #e6e8eb;
+                max-height: 1px;
+                margin: 8px 0px;
+            }
+        """)
+        layout.addWidget(separator)
 
         def nav_btn(text, handler):
             btn = QPushButton(text)
@@ -427,6 +572,17 @@ class MainWindow(QMainWindow):
         side.setLayout(layout)
         side.setStyleSheet("#Sidebar { background: #ffffff; border: 1px solid #e6e8eb; border-radius: 8px; min-width: 220px; }")
         return side
+
+    def _update_sidebar_welcome(self, user: User):
+        """Update the sidebar welcome message with user's name"""
+        if hasattr(self, 'sidebar_welcome_label') and self.sidebar_welcome_label:
+            name = (getattr(user, 'first_name', '') or '').strip()
+            if not name:
+                name = (getattr(user, 'username', '') or '').strip()
+            if name:
+                self.sidebar_welcome_label.setText(f"Welcome, {name}!")
+            else:
+                self.sidebar_welcome_label.setText("Welcome!")
 
     def _build_footer(self) -> QWidget:
         foot = QWidget()
@@ -473,6 +629,15 @@ class MainWindow(QMainWindow):
 
 
 def main():
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(description='Personal Budget Management System')
+    parser.add_argument('--dev', '--dev-mode', action='store_true', 
+                       help='Enable development mode (auto-login, bypasses authentication)')
+    args = parser.parse_args()
+    
+    # Check for environment variable as alternative
+    dev_mode = args.dev or os.getenv('DEV_MODE', '').lower() in ('1', 'true', 'yes')
+    
     app = QApplication(sys.argv)
     app.setApplicationName("Personal Budget Management System")
     app.setApplicationVersion("1.0")
@@ -481,6 +646,7 @@ def main():
     app.setStyleSheet("""
         QApplication { font-family: 'Inter', 'Segoe UI', Arial, sans-serif; }
         QWidget { font-size: 13px; }
+        QLabel#MainHeaderTitle { font-size: 32px !important; font-weight: bold !important; color: #2c3e50; }
         QPushButton { padding: 9px 14px; border-radius: 8px; background: #2f6fed; color: #ffffff; border: none; }
         QPushButton:hover { background: #245add; }
         QPushButton#HeaderBtn { background: #f0f3f8; color: #2c3e50; }
@@ -491,10 +657,13 @@ def main():
         QHeaderView::section { background: #f5f7fb; color: #2c3e50; border: none; padding: 10px; font-weight: 600; }
         QScrollArea { background: transparent; }
     """)
-    
-    window = MainWindow()
+
+    window = MainWindow(dev_mode=dev_mode)
     window.show()
-    sys.exit(app.exec())
+    
+    # Run the application
+    exit_code = app.exec()
+    sys.exit(exit_code)
 
 
 if __name__ == "__main__":

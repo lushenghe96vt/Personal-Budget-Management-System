@@ -17,8 +17,8 @@ class NotificationBanner(QWidget):
         self._message_label.setWordWrap(True)
         self._message_label.setStyleSheet("font-size: 14px; font-weight: 600;")
 
-        self._close_button = QPushButton("✖")
-        self._close_button.setFixedWidth(32)
+        self._close_button = QPushButton("×")
+        self._close_button.setMaximumWidth(32)
         self._close_button.clicked.connect(self._handle_close)
 
         layout = QHBoxLayout()
