@@ -14,7 +14,7 @@ from datetime import datetime
 class TransactionCol:
     """
     User information should follow this structure in the dict:
-    user_oid:           ObjectID
+    user_ref:           string
     id:                 string
     date:               datetime
     description:        string
@@ -55,6 +55,9 @@ class TransactionCol:
                 "properties": {
                     "_id": {
                         "bsonType": "objectId"
+                    },
+                    "user_ref": {
+                        "bsonType": "string"
                     },
                     "id": {
                         "bsonType": "string"

@@ -153,7 +153,7 @@ class UserCol:
 
 def main():
     """Demo usage for the user class"""
-    userCollection = UserCollection()
+    userCollection = UserCol()
     user_input = input("Enter 1 to create a new account, 2 to view an account information, or 3 to update an existing user's email: ")
     if user_input == "1":
         user_dict = dict()
