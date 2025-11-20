@@ -8,6 +8,7 @@ Description:    This module deals with database operations with the user's infor
 
 from bson import ObjectId
 from core.database.mongdb_client import database
+from pymongo.errors import WriteError
 from datetime import datetime
 
 
@@ -30,10 +31,64 @@ class UserCollection:
 
     def __init__(self):
         """Initialize a connection to the user collection"""
+        if self.COLLECTION not in database.get_db().list_collection_names():
+            self.create_user_collection()
         self._collection = database.get_db()[self.COLLECTION]
 
 
-    def create_user(self, user: dict) -> str:
+    def create_user_collection(self):
+        """Creates a new user collection if it does not already exist in the database with a json schema"""
+        property_list = ["username", "email", "password_hash", "first_name", "last_name",
+                         "phone", "created_at", "last_login", "monthly_spending_limit",
+                         "monthly_savings_goal", "goal_streak_count"]
+        database.get_db().create_collection(self.COLLECTION, validator = {
+            "$jsonSchema": {
+                "bsonType": "object",
+                "additionalProperties": False,
+                "required": property_list,
+                "properties": {
+                    "_id": {
+                        "bsonType": "objectId"
+                    },
+                    "username": {
+                        "bsonType": "string"
+                    },
+                    "email": {
+                        "bsonType": "string"
+                    },
+                    "password_hash": {
+                        "bsonType": "string"
+                    },
+                    "first_name": {
+                        "bsonType": "string"
+                    },
+                    "last_name": {
+                        "bsonType": "string"
+                    },
+                    "phone": {
+                        "bsonType": "string"
+                    },
+                    "created_at": {
+                        "bsonType": "date"
+                    },
+                    "last_login": {
+                        "bsonType": "date"
+                    },
+                    "monthly_spending_limit": {
+                        "bsonType": "double"
+                    },
+                    "monthly_savings_goal": {
+                        "bsonType": "double"
+                    },
+                    "goal_streak_count": {
+                        "bsonType": "int"
+                    }
+                }
+            }
+        },  validationLevel = "strict", validationAction = "error")
+
+
+    def create_user(self, user: dict) -> str | None:
         """
         Creates a user with the given dict.
         
@@ -46,9 +101,11 @@ class UserCollection:
         """
         if (self._collection.find_one({"username": user["username"]}) != None):
             raise Exception("User already exists in db")
-        
-        inserted = self._collection.insert_one(user)
-        return str(inserted.inserted_id)
+        try:
+            inserted = self._collection.insert_one(user)
+            return str(inserted.inserted_id)
+        except WriteError as e:
+            print(e)
             
     
     def get_user(self, username: str) -> dict | None:
@@ -58,12 +115,12 @@ class UserCollection:
         Params:
             username: The username of the user
         Returns:
-            The user information as a dict if it exists
+            The user information as a dict if it exists (or None if it doesn't exist)
         """
         return self._collection.find_one({"username": username})
     
 
-    def get_userid(self, username: str) -> ObjectId:
+    def get_userid(self, username: str) -> ObjectId | None:
         """
         Get the document unique object id
 
@@ -72,10 +129,13 @@ class UserCollection:
         Returns:
             The unique object id of the document
         """
-        return self._collection.find_one({"username": username}, {"_id": 1})
+        if self.get_user(username) is not None:
+            return self._collection.find_one({"username": username}, {"_id": 1})
+        else:
+            print(f"No document with username {username} exists.")
     
 
-    def update_user(self, username: str, updates: dict) -> int:
+    def update_user(self, username: str, updates: dict) -> int | None:
         """
         Updates the user information
 
@@ -84,14 +144,17 @@ class UserCollection:
         Returns:
             The amount of fields successfully modified
         """
-        update_result = self._collection.update_one({"username": username}, {"$set": updates})
-        return update_result.modified_count
+        try:
+            update_result = self._collection.update_one({"username": username}, {"$set": updates})
+            return update_result.modified_count
+        except WriteError as e:
+            print(e)
 
 
 def main():
     """Demo usage for the user class"""
     userCollection = UserCollection()
-    user_input = input("Enter 1 to create a new account or 2 to view an account information: ")
+    user_input = input("Enter 1 to create a new account, 2 to view an account information, or 3 to update an existing user's email: ")
     if user_input == "1":
         user_dict = dict()
         user_dict["username"]       = input("Enter a username: ")
@@ -108,11 +171,22 @@ def main():
         userCollection.create_user(user_dict)
     elif user_input == "2":
         username = input("Enter username: ")
+        if (userCollection.get_user(username) != None):
+            update_dict = dict()
+            update_dict["last_login"] = datetime.now()
+            userCollection.update_user(username, update_dict)
+            user_info = userCollection.get_user(username)
+            print(user_info)
+        else:
+            print(f"No document with username {username} exists.")
+    elif user_input == "3":
+        username = input("Enter username: ")
         update_dict = dict()
         update_dict["last_login"] = datetime.now()
+        update_dict["email"] = input("Enter new email: ")
         userCollection.update_user(username, update_dict)
-        user_info = userCollection.get_user(username)
-        print(user_info)
+    else:
+        print("Invalid input")
 
 
 if __name__ == "__main__":
