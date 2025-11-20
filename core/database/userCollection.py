@@ -1,5 +1,5 @@
 """
-Filename:       user.py
+Filename:       userCollection.py
 Version:        1.0
 Authors:        Jason Huang, ECE4574_F25_Team8
 Description:    This module deals with database operations with the user's information
@@ -12,7 +12,7 @@ from pymongo.errors import WriteError
 from datetime import datetime
 
 
-class UserCollection:
+class UserCol:
     """
     User information should follow this structure in the dict:
     username:               str
@@ -23,8 +23,8 @@ class UserCollection:
     phone:                  str
     created_at:             datetime
     last_login:             datetime
-    monthly_spending_limit: float
-    monthly_savings_goal:   float
+    monthly_spending_limit: double
+    monthly_savings_goal:   double
     goal_streak_count:      int
     """
     COLLECTION = "users"
