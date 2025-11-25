@@ -36,7 +36,8 @@ from .goals import (
 
 from .subscriptions import (
     get_subscription_transactions,
-    calculate_subscription_totals
+    calculate_subscription_totals,
+    annotate_subscription_metadata
 )
 
 from .months import (
@@ -74,6 +75,7 @@ __all__ = [
     # Subscriptions
     'get_subscription_transactions',
     'calculate_subscription_totals',
+    'annotate_subscription_metadata',
     # Months
     'filter_transactions',
     'filter_transactions_by_month',

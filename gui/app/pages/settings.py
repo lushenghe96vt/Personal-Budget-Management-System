@@ -51,12 +51,24 @@ class BudgetSettingsPage(QWidget):
         self.spending_limit_input = QLineEdit()
         self.spending_limit_input.setPlaceholderText("e.g., 1500.00")
         self.spending_limit_input.setStyleSheet(Styles.SEARCH_INPUT)
+        self.weekly_limit_input = QLineEdit()
+        self.weekly_limit_input.setPlaceholderText("e.g., 400.00")
+        self.weekly_limit_input.setStyleSheet(Styles.SEARCH_INPUT)
         self.savings_goal_input = QLineEdit()
         self.savings_goal_input.setPlaceholderText("e.g., 500.00")
         self.savings_goal_input.setStyleSheet(Styles.SEARCH_INPUT)
+        self.monthly_threshold_input = QLineEdit()
+        self.monthly_threshold_input.setPlaceholderText("0-100 (default 75)")
+        self.monthly_threshold_input.setStyleSheet(Styles.SEARCH_INPUT)
+        self.weekly_threshold_input = QLineEdit()
+        self.weekly_threshold_input.setPlaceholderText("0-100 (default 75)")
+        self.weekly_threshold_input.setStyleSheet(Styles.SEARCH_INPUT)
         
         form.addRow("Monthly Spending Limit ($)", self.spending_limit_input)
+        form.addRow("Weekly Spending Limit ($)", self.weekly_limit_input)
         form.addRow("Monthly Savings Goal ($)", self.savings_goal_input)
+        form.addRow("Monthly Alert Threshold (%)", self.monthly_threshold_input)
+        form.addRow("Weekly Alert Threshold (%)", self.weekly_threshold_input)
         
         overall_section.content_layout.addLayout(form)
         # Add stretch at bottom to push content to top
@@ -114,7 +126,12 @@ class BudgetSettingsPage(QWidget):
         if self.user is None:
             return
         self.spending_limit_input.setText("" if self.user.monthly_spending_limit is None else f"{self.user.monthly_spending_limit:.2f}")
+        self.weekly_limit_input.setText("" if self.user.weekly_spending_limit is None else f"{self.user.weekly_spending_limit:.2f}")
         self.savings_goal_input.setText("" if self.user.monthly_savings_goal is None else f"{self.user.monthly_savings_goal:.2f}")
+        monthly_threshold = self.user.monthly_alert_threshold_pct if getattr(self.user, "monthly_alert_threshold_pct", None) is not None else 75
+        weekly_threshold = self.user.weekly_alert_threshold_pct if getattr(self.user, "weekly_alert_threshold_pct", None) is not None else 75
+        self.monthly_threshold_input.setText("" if monthly_threshold is None else str(monthly_threshold))
+        self.weekly_threshold_input.setText("" if weekly_threshold is None else str(weekly_threshold))
 
         # load per-category
         limits = self.user.per_category_limits or {}
@@ -147,7 +164,21 @@ class BudgetSettingsPage(QWidget):
                 return None
 
         spending_limit = _to_float(self.spending_limit_input.text())
+        weekly_limit = _to_float(self.weekly_limit_input.text())
         savings_goal = _to_float(self.savings_goal_input.text())
+
+        def _to_pct(txt: str):
+            t = (txt or "").strip()
+            if not t:
+                return None
+            try:
+                val = int(float(t))
+            except ValueError:
+                return None
+            return max(1, min(100, val))
+
+        monthly_threshold = _to_pct(self.monthly_threshold_input.text())
+        weekly_threshold = _to_pct(self.weekly_threshold_input.text())
 
         # per-category
         per_cat: dict[str, float] = {}
@@ -161,8 +192,11 @@ class BudgetSettingsPage(QWidget):
 
         # update user
         self.user.monthly_spending_limit = spending_limit
+        self.user.weekly_spending_limit = weekly_limit
         self.user.monthly_savings_goal = savings_goal
         self.user.per_category_limits = per_cat
+        self.user.monthly_alert_threshold_pct = monthly_threshold if monthly_threshold is not None else 75
+        self.user.weekly_alert_threshold_pct = weekly_threshold if weekly_threshold is not None else 75
 
         # Directly persist without revalidating immutable fields
         self.user_manager._users[self.user.username] = self.user

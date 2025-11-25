@@ -32,6 +32,7 @@ sys.path.insert(0, str(project_root))
 from core.models import Transaction
 from core.analytics.goals import compute_goal_streak
 from core.analytics.spending import get_spending_by_category_dict
+from core.analytics.subscriptions import annotate_subscription_metadata
 
 
 @dataclass
@@ -48,8 +49,11 @@ class User:
     transactions: List[Transaction] = field(default_factory=list)
     # Budget/goal fields
     monthly_spending_limit: Optional[float] = None  # overall cap for monthly spend
+    weekly_spending_limit: Optional[float] = None   # cap for weekly spend
     monthly_savings_goal: Optional[float] = None    # target savings per month
     per_category_limits: Dict[str, float] = field(default_factory=dict)  # optional caps
+    monthly_alert_threshold_pct: Optional[int] = 75  # percentage trigger for monthly alerts
+    weekly_alert_threshold_pct: Optional[int] = 75   # percentage trigger for weekly alerts
     goal_streak_count: int = 0  # number of consecutive months meeting savings goal
     
     def __post_init__(self):
@@ -71,8 +75,11 @@ class User:
             'last_login': self.last_login.isoformat() if self.last_login else None,
             'transactions': [self._transaction_to_dict(txn) for txn in self.transactions],
             'monthly_spending_limit': self.monthly_spending_limit,
+            'weekly_spending_limit': self.weekly_spending_limit,
             'monthly_savings_goal': self.monthly_savings_goal,
             'per_category_limits': self.per_category_limits,
+            'monthly_alert_threshold_pct': self.monthly_alert_threshold_pct,
+            'weekly_alert_threshold_pct': self.weekly_alert_threshold_pct,
             'goal_streak_count': self.goal_streak_count,
         }
     
@@ -89,8 +96,11 @@ class User:
             created_at=datetime.fromisoformat(data['created_at']) if data.get('created_at') else None,
             last_login=datetime.fromisoformat(data['last_login']) if data.get('last_login') else None,
             monthly_spending_limit=data.get('monthly_spending_limit'),
+            weekly_spending_limit=data.get('weekly_spending_limit'),
             monthly_savings_goal=data.get('monthly_savings_goal'),
             per_category_limits=data.get('per_category_limits', {}),
+            monthly_alert_threshold_pct=data.get('monthly_alert_threshold_pct', 75),
+            weekly_alert_threshold_pct=data.get('weekly_alert_threshold_pct', 75),
             goal_streak_count=int(data.get('goal_streak_count', 0)),
         )
         
@@ -108,19 +118,20 @@ class User:
             'date': txn.date.isoformat(),
             'description': txn.description,
             'amount': str(txn.amount),
-            'posted_date': txn.posted_date.isoformat() if txn.posted_date else None,
             'description_raw': txn.description_raw,
-            'merchant': txn.merchant,
             'currency': txn.currency,
-            'txn_type': txn.txn_type,
-            'balance': str(txn.balance) if txn.balance else None,
             'category': txn.category,
             'notes': txn.notes,
             'user_override': txn.user_override,
             'statement_month': txn.statement_month,
             'source_name': txn.source_name,
             'source_upload_id': txn.source_upload_id,
-            'raw': txn.raw
+            'raw': txn.raw,
+            'is_subscription': txn.is_subscription,
+            'next_due_date': txn.next_due_date.isoformat() if txn.next_due_date else None,
+            'renewal_interval_type': txn.renewal_interval_type,
+            'custom_interval_days': txn.custom_interval_days,
+            'alert_sent': txn.alert_sent
         }
     
     @staticmethod
@@ -133,19 +144,21 @@ class User:
             date=datetime.fromisoformat(data['date']),
             description=data['description'],
             amount=Decimal(data['amount']),
-            posted_date=datetime.fromisoformat(data['posted_date']) if data.get('posted_date') else None,
             description_raw=data.get('description_raw', ''),
             merchant=data.get('merchant', ''),
             currency=data.get('currency', 'USD'),
-            txn_type=data.get('txn_type', ''),
-            balance=Decimal(data['balance']) if data.get('balance') else None,
             category=data.get('category', 'Uncategorized'),
             notes=data.get('notes', ''),
             user_override=data.get('user_override', False),
             statement_month=data.get('statement_month', ''),
             source_name=data.get('source_name', ''),
             source_upload_id=data.get('source_upload_id', ''),
-            raw=data.get('raw', {})
+            raw=data.get('raw', {}),
+            is_subscription=data.get('is_subscription', False),
+            next_due_date=datetime.fromisoformat(data['next_due_date']) if data.get('next_due_date') else None,
+            renewal_interval_type=data.get('renewal_interval_type', 'monthly'),
+            custom_interval_days=data.get('custom_interval_days', 30),
+            alert_sent=data.get('alert_sent', False)
         )
 
 
@@ -169,16 +182,29 @@ class UserManager:
             try:
                 with open(self.users_file, 'r') as f:
                     data = json.load(f)
-                    return {username: User.from_dict(user_data) for username, user_data in data.items()}
+                    users = {username: User.from_dict(user_data) for username, user_data in data.items()}
+                    for user in users.values():
+                        self._refresh_subscription_metadata(user)
+                    return users
             except (json.JSONDecodeError, KeyError):
                 return {}
         return {}
     
     def _save_users(self):
         """Save users to storage"""
-        data = {username: user.to_dict() for username, user in self._users.items()}
+        data = {}
+        for username, user in self._users.items():
+            self._refresh_subscription_metadata(user)
+            data[username] = user.to_dict()
         with open(self.users_file, 'w') as f:
             json.dump(data, f, indent=2)
+
+    def _refresh_subscription_metadata(self, user: User) -> None:
+        """Ensure subscription-related flags/dates are current."""
+        try:
+            annotate_subscription_metadata(user.transactions)
+        except Exception:
+            pass
     
     def _hash_password(self, password: str) -> str:
         """Hash password using SHA-256"""
@@ -335,6 +361,7 @@ class UserManager:
             user.transactions.extend(new_transactions)
             # Normalize statement months by upload grouping
             self._normalize_statement_months(username)
+            self._refresh_subscription_metadata(user)
             self._save_users()
         
         # Return message with duplicate info
@@ -423,6 +450,7 @@ class UserManager:
         
         # Update user's transactions
         user.transactions = unique_transactions
+        self._refresh_subscription_metadata(user)
         self._save_users()
         
         return True, f"Removed {duplicates_removed} duplicate transactions. {len(unique_transactions)} unique transactions remaining."
@@ -446,6 +474,7 @@ class UserManager:
         if 'notes' in kwargs:
             transaction.notes = kwargs['notes']
         
+        self._refresh_subscription_metadata(user)
         self._save_users()
         return True, "Transaction updated successfully!"
     

@@ -99,6 +99,13 @@ class BudgetAnalysisPage(QWidget):
         if not self.user or not self.user.transactions:
             return
         
+        if self.user_manager:
+            try:
+                self.user_manager.recompute_goal_streak(self.user.username)
+                self.user = self.user_manager.get_user(self.user.username) or self.user
+            except Exception:
+                pass
+        
         transactions = self.user.transactions
         
         # Update all tabs

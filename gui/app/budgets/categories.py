@@ -7,7 +7,7 @@ Provides the category breakdown tab with pie chart and detailed table.
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTableWidget,
-    QTableWidgetItem, QHeaderView, QGroupBox, QPushButton
+    QTableWidgetItem, QHeaderView, QGroupBox, QPushButton, QScrollArea
 )
 from PyQt6.QtCharts import QChartView
 from PyQt6.QtGui import QPainter
@@ -32,7 +32,11 @@ class CategoriesTab(QWidget):
         self._build_ui()
     
     def _build_ui(self):
-        layout = QVBoxLayout(self)
+        outer_layout = QVBoxLayout(self)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        content_widget = QWidget()
+        layout = QVBoxLayout(content_widget)
         layout.setSpacing(20)
         
         # Month filter
@@ -96,6 +100,9 @@ class CategoriesTab(QWidget):
         content_layout.addWidget(table_group, 1)  # 50% width
         
         layout.addLayout(content_layout)
+
+        scroll.setWidget(content_widget)
+        outer_layout.addWidget(scroll)
     
     def set_transactions(self, transactions: List[Transaction]):
         """Update transactions and refresh display."""

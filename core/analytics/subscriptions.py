@@ -5,8 +5,9 @@ Personal Budget Management System – Subscription Transaction Analysis
 Provides functions for identifying and analyzing subscription transactions.
 """
 
-from typing import List
+from typing import List, Dict, Tuple, Optional
 from datetime import datetime, timedelta
+from collections import defaultdict
 
 from core.models import Transaction
 
@@ -53,6 +54,53 @@ def get_subscription_transactions(transactions: List[Transaction]) -> List[Trans
     return subscriptions
 
 
+def annotate_subscription_metadata(transactions: List[Transaction]) -> None:
+    """
+    Detect subscriptions and populate Transaction flags (is_subscription, next_due_date, etc.)
+    so the UI can surface Luke's subscription fields.
+    """
+    if not transactions:
+        return
+
+    subs = get_subscription_transactions(transactions)
+    subs_set = {id(t) for t in subs}
+
+    # Reset flags to avoid stale values
+    for txn in transactions:
+        txn.is_subscription = id(txn) in subs_set
+        if not txn.is_subscription:
+            txn.next_due_date = None
+            txn.alert_sent = False
+
+    groups: Dict[Tuple[str, float], List[Transaction]] = defaultdict(list)
+    for txn in transactions:
+        if not txn.is_subscription or not getattr(txn, "date", None):
+            continue
+        key = _subscription_group_key(txn)
+        if key:
+            groups[key].append(txn)
+
+    for txns in groups.values():
+        txns.sort(key=lambda t: t.date)
+        interval_days = _estimate_interval_days(txns)
+        interval_type, interval_value = _map_interval(interval_days)
+
+        for txn in txns:
+            txn.renewal_interval_type = interval_type
+            if interval_type == "custom_days":
+                txn.custom_interval_days = interval_value
+            elif interval_type == "monthly":
+                txn.custom_interval_days = 30
+            elif interval_type == "weekly":
+                txn.custom_interval_days = 7
+            elif interval_type == "annual":
+                txn.custom_interval_days = 365
+
+            if txn.date:
+                next_interval = interval_value if interval_type == "custom_days" else txn.custom_interval_days
+                txn.next_due_date = txn.date + timedelta(days=next_interval)
+
+
 def _is_likely_recurring(transaction: Transaction, all_transactions: List[Transaction]) -> bool:
     """
     Heuristic to identify if a transaction is likely recurring.
@@ -75,6 +123,39 @@ def _is_likely_recurring(transaction: Transaction, all_transactions: List[Transa
     
     # If we find at least one similar transaction, it's likely recurring
     return len(similar) >= 1
+
+
+def _subscription_group_key(transaction: Transaction) -> Optional[Tuple[str, float]]:
+    desc = (transaction.merchant or transaction.description or "").strip().lower()
+    if not desc:
+        return None
+    amount = abs(float(transaction.amount)) if transaction.amount is not None else None
+    if amount is None:
+        return None
+    return (desc, round(amount, 2))
+
+
+def _estimate_interval_days(transactions: List[Transaction]) -> int:
+    if len(transactions) < 2:
+        return 30
+    deltas = []
+    for prev, curr in zip(transactions[:-1], transactions[1:]):
+        diff = (curr.date - prev.date).days if curr.date and prev.date else None
+        if diff and diff > 0:
+            deltas.append(diff)
+    if not deltas:
+        return 30
+    return int(sum(deltas) / len(deltas))
+
+
+def _map_interval(days: int) -> Tuple[str, int]:
+    if 25 <= days <= 35:
+        return "monthly", 30
+    if 6 <= days <= 8:
+        return "weekly", 7
+    if 350 <= days <= 380:
+        return "annual", 365
+    return "custom_days", max(days, 1)
 
 
 def calculate_subscription_totals(transactions: List[Transaction]) -> dict:
