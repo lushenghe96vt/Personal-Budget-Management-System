@@ -126,7 +126,7 @@
           "Balance": "3357.18"
         },
         "is_subscription": true,
-        "next_due_date": "2025-02-03T00:00:00",
+        "next_due_date": "2025-11-30T00:00:00",
         "renewal_interval_type": "monthly",
         "custom_interval_days": 30,
         "alert_sent": false
@@ -256,7 +256,7 @@
           "Balance": "1485.88"
         },
         "is_subscription": true,
-        "next_due_date": "2025-03-11T00:00:00",
+        "next_due_date": "2025-12-06T00:00:00",
         "renewal_interval_type": "monthly",
         "custom_interval_days": 30,
         "alert_sent": false
@@ -360,7 +360,7 @@
           "Balance": "208.62"
         },
         "is_subscription": true,
-        "next_due_date": "2025-03-30T00:00:00",
+        "next_due_date": "2025-12-25T00:00:00",
         "renewal_interval_type": "monthly",
         "custom_interval_days": 30,
         "alert_sent": false
@@ -516,7 +516,7 @@
           "Balance": "3342.19"
         },
         "is_subscription": true,
-        "next_due_date": "2025-02-04T00:00:00",
+        "next_due_date": "2025-12-01T00:00:00",
         "renewal_interval_type": "monthly",
         "custom_interval_days": 30,
         "alert_sent": false
@@ -542,7 +542,7 @@
           "Balance": "3332.2"
         },
         "is_subscription": true,
-        "next_due_date": "2025-02-04T00:00:00",
+        "next_due_date": "2025-12-01T00:00:00",
         "renewal_interval_type": "monthly",
         "custom_interval_days": 30,
         "alert_sent": false
@@ -568,7 +568,7 @@
           "Balance": "1412.61"
         },
         "is_subscription": true,
-        "next_due_date": "2025-02-22T00:00:00",
+        "next_due_date": "2025-12-19T00:00:00",
         "renewal_interval_type": "monthly",
         "custom_interval_days": 30,
         "alert_sent": false
@@ -594,7 +594,7 @@
           "Balance": "1740.88"
         },
         "is_subscription": true,
-        "next_due_date": "2025-03-06T00:00:00",
+        "next_due_date": "2025-12-01T00:00:00",
         "renewal_interval_type": "monthly",
         "custom_interval_days": 30,
         "alert_sent": false
@@ -620,7 +620,7 @@
           "Balance": "233.62"
         },
         "is_subscription": true,
-        "next_due_date": "2025-03-28T00:00:00",
+        "next_due_date": "2025-12-23T00:00:00",
         "renewal_interval_type": "monthly",
         "custom_interval_days": 30,
         "alert_sent": false
@@ -724,7 +724,7 @@
           "Balance": "1784.08"
         },
         "is_subscription": true,
-        "next_due_date": "2025-02-12T00:00:00",
+        "next_due_date": "2025-12-09T00:00:00",
         "renewal_interval_type": "monthly",
         "custom_interval_days": 30,
         "alert_sent": false
@@ -1140,7 +1140,7 @@
           "Balance": "3144.86"
         },
         "is_subscription": true,
-        "next_due_date": "2025-02-08T00:00:00",
+        "next_due_date": "2025-12-05T00:00:00",
         "renewal_interval_type": "monthly",
         "custom_interval_days": 30,
         "alert_sent": false
@@ -1890,7 +1890,7 @@
           "[FILLER2]": ""
         },
         "is_subscription": true,
-        "next_due_date": "2025-02-18T00:00:00",
+        "next_due_date": "2025-12-15T00:00:00",
         "renewal_interval_type": "monthly",
         "custom_interval_days": 30,
         "alert_sent": false
@@ -1930,7 +1930,7 @@
     "last_name": "123",
     "phone": "1231231231",
     "created_at": "2025-11-14T23:41:21.890923",
-    "last_login": "2025-11-28T16:34:53.151890",
+    "last_login": "2025-11-28T17:36:05.477461",
     "transactions": [
       {
         "id": "row:1",
@@ -2739,7 +2739,7 @@
           "Posting Date": "07/15/25"
         },
         "is_subscription": true,
-        "next_due_date": "2025-08-14T00:00:00",
+        "next_due_date": "2025-12-12T00:00:00",
         "renewal_interval_type": "monthly",
         "custom_interval_days": 30,
         "alert_sent": false
@@ -2795,7 +2795,7 @@
           "Posting Date": "07/17/25"
         },
         "is_subscription": true,
-        "next_due_date": "2025-08-16T00:00:00",
+        "next_due_date": "2025-12-14T00:00:00",
         "renewal_interval_type": "monthly",
         "custom_interval_days": 30,
         "alert_sent": false
@@ -3551,7 +3551,7 @@
           "Posting Date": "08/04/25"
         },
         "is_subscription": true,
-        "next_due_date": "2025-09-03T00:00:00",
+        "next_due_date": "2025-12-02T00:00:00",
         "renewal_interval_type": "monthly",
         "custom_interval_days": 30,
         "alert_sent": false
@@ -3887,7 +3887,7 @@
           "Posting Date": "08/08/25"
         },
         "is_subscription": true,
-        "next_due_date": "2025-09-07T00:00:00",
+        "next_due_date": "2025-12-06T00:00:00",
         "renewal_interval_type": "monthly",
         "custom_interval_days": 30,
         "alert_sent": false
@@ -3971,7 +3971,7 @@
           "Posting Date": "08/09/25"
         },
         "is_subscription": true,
-        "next_due_date": "2025-09-08T00:00:00",
+        "next_due_date": "2025-12-07T00:00:00",
         "renewal_interval_type": "monthly",
         "custom_interval_days": 30,
         "alert_sent": false
@@ -4139,7 +4139,7 @@
           "Posting Date": "08/12/25"
         },
         "is_subscription": true,
-        "next_due_date": "2025-09-11T00:00:00",
+        "next_due_date": "2025-12-10T00:00:00",
         "renewal_interval_type": "monthly",
         "custom_interval_days": 30,
         "alert_sent": false
@@ -5119,7 +5119,7 @@
           "Posting Date": "09/04/25"
         },
         "is_subscription": true,
-        "next_due_date": "2025-10-04T00:00:00",
+        "next_due_date": "2025-12-03T00:00:00",
         "renewal_interval_type": "monthly",
         "custom_interval_days": 30,
         "alert_sent": false
@@ -6386,7 +6386,7 @@
       }
     ],
     "monthly_spending_limit": 5000.0,
-    "weekly_spending_limit": null,
+    "weekly_spending_limit": 1200.0,
     "monthly_savings_goal": 2000.0,
     "per_category_limits": {
       "Subscriptions": 200.0,
@@ -7216,7 +7216,7 @@
           "Posting Date": "07/15/25"
         },
         "is_subscription": true,
-        "next_due_date": "2025-08-14T00:00:00",
+        "next_due_date": "2025-12-12T00:00:00",
         "renewal_interval_type": "monthly",
         "custom_interval_days": 30,
         "alert_sent": false
@@ -7272,7 +7272,7 @@
           "Posting Date": "07/17/25"
         },
         "is_subscription": true,
-        "next_due_date": "2025-08-16T00:00:00",
+        "next_due_date": "2025-12-14T00:00:00",
         "renewal_interval_type": "monthly",
         "custom_interval_days": 30,
         "alert_sent": false
@@ -8028,7 +8028,7 @@
           "Posting Date": "08/04/25"
         },
         "is_subscription": true,
-        "next_due_date": "2025-09-03T00:00:00",
+        "next_due_date": "2025-12-02T00:00:00",
         "renewal_interval_type": "monthly",
         "custom_interval_days": 30,
         "alert_sent": false
@@ -8364,7 +8364,7 @@
           "Posting Date": "08/08/25"
         },
         "is_subscription": true,
-        "next_due_date": "2025-09-07T00:00:00",
+        "next_due_date": "2025-12-06T00:00:00",
         "renewal_interval_type": "monthly",
         "custom_interval_days": 30,
         "alert_sent": false
@@ -8448,7 +8448,7 @@
           "Posting Date": "08/09/25"
         },
         "is_subscription": true,
-        "next_due_date": "2025-09-08T00:00:00",
+        "next_due_date": "2025-12-07T00:00:00",
         "renewal_interval_type": "monthly",
         "custom_interval_days": 30,
         "alert_sent": false
@@ -8616,7 +8616,7 @@
           "Posting Date": "08/12/25"
         },
         "is_subscription": true,
-        "next_due_date": "2025-09-11T00:00:00",
+        "next_due_date": "2025-12-10T00:00:00",
         "renewal_interval_type": "monthly",
         "custom_interval_days": 30,
         "alert_sent": false
@@ -9596,7 +9596,7 @@
           "Posting Date": "09/04/25"
         },
         "is_subscription": true,
-        "next_due_date": "2025-10-04T00:00:00",
+        "next_due_date": "2025-12-03T00:00:00",
         "renewal_interval_type": "monthly",
         "custom_interval_days": 30,
         "alert_sent": false

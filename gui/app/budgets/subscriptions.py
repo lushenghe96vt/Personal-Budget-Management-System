@@ -98,7 +98,7 @@ class SubscriptionsTab(QWidget):
         for r, t in enumerate(subs):
             self.subs_table.setItem(r, 0, QTableWidgetItem(t.date.strftime('%Y-%m-%d')))
             self.subs_table.setItem(r, 1, QTableWidgetItem(t.description))
-            self.subs_table.setItem(r, 2, QTableWidgetItem(f"-${abs(t.amount):.2f}"))
+            self.subs_table.setItem(r, 2, QTableWidgetItem(f"${abs(t.amount):.2f}"))
             
             next_due = getattr(t, 'next_due_date', None)
             self.subs_table.setItem(

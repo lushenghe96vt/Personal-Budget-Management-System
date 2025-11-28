@@ -64,6 +64,7 @@ def annotate_subscription_metadata(transactions: List[Transaction]) -> None:
 
     subs = get_subscription_transactions(transactions)
     subs_set = {id(t) for t in subs}
+    now = datetime.now()
 
     # Reset flags to avoid stale values
     for txn in transactions:
@@ -88,17 +89,29 @@ def annotate_subscription_metadata(transactions: List[Transaction]) -> None:
         for txn in txns:
             txn.renewal_interval_type = interval_type
             if interval_type == "custom_days":
-                txn.custom_interval_days = interval_value
+                txn.custom_interval_days = max(interval_value, 1)
+                assigned_interval_days = txn.custom_interval_days
             elif interval_type == "monthly":
                 txn.custom_interval_days = 30
+                assigned_interval_days = 30
             elif interval_type == "weekly":
                 txn.custom_interval_days = 7
+                assigned_interval_days = 7
             elif interval_type == "annual":
                 txn.custom_interval_days = 365
+                assigned_interval_days = 365
+            else:
+                assigned_interval_days = txn.custom_interval_days or max(interval_value, 1)
+            assigned_interval_days = max(assigned_interval_days, 1)
 
             if txn.date:
-                next_interval = interval_value if interval_type == "custom_days" else txn.custom_interval_days
-                txn.next_due_date = txn.date + timedelta(days=next_interval)
+                next_due = txn.date + timedelta(days=assigned_interval_days)
+                # Roll forward until the due date is in the future
+                safety = 0
+                while next_due <= now and safety < 36:
+                    next_due += timedelta(days=assigned_interval_days)
+                    safety += 1
+                txn.next_due_date = next_due
 
 
 def _is_likely_recurring(transaction: Transaction, all_transactions: List[Transaction]) -> bool:
