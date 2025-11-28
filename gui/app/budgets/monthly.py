@@ -7,7 +7,7 @@ Provides the monthly trends tab showing income, spending, and net by month.
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QTableWidget, QTableWidgetItem,
-    QHeaderView, QGroupBox, QPushButton
+    QHeaderView, QGroupBox, QPushButton, QScrollArea
 )
 from PyQt6.QtCharts import QChartView
 from PyQt6.QtGui import QColor, QPainter
@@ -28,7 +28,11 @@ class MonthlyTrendsTab(QWidget):
         self._build_ui()
     
     def _build_ui(self):
-        layout = QVBoxLayout(self)
+        outer_layout = QVBoxLayout(self)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        content_widget = QWidget()
+        layout = QVBoxLayout(content_widget)
         layout.setSpacing(20)
         
         # Content layout (pie chart left, table right - 50-50 split)
@@ -88,6 +92,9 @@ class MonthlyTrendsTab(QWidget):
         content_layout.addWidget(table_group, 1)  # 50% width
         
         layout.addLayout(content_layout)
+
+        scroll.setWidget(content_widget)
+        outer_layout.addWidget(scroll)
     
     def set_transactions(self, transactions: List[Transaction]):
         """Update transactions and refresh display."""

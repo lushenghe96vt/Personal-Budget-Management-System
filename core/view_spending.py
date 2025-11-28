@@ -2,7 +2,7 @@
 # File Name:       view_spending.py
 # Author:          Sheng Lu
 # Created:         10/03/2025
-# Last Modified:   10/24/2025
+# Last Modified:   11/12/2025
 # ===============================================================
 # Description: contains functons to generate spending summary 
 # data and display it in pie chart or table format.
@@ -26,10 +26,18 @@ from core.models import Transaction
 from datetime import datetime
 
 #imports for chart guis
-import sys
 from PyQt6.QtWidgets import QApplication, QDialog, QVBoxLayout
-from PyQt6.QtCharts import QChart, QChartView, QPieSeries, QLineSeries, QValueAxis, QScatterSeries, QCategoryAxis
-from PyQt6.QtGui import QPainter, QColor
+from PyQt6.QtCharts import (
+    QChart,
+    QChartView,
+    QPieSeries,
+    QLineSeries,
+    QValueAxis,
+    QScatterSeries,
+    QCategoryAxis,
+    QPieSlice,
+)
+from PyQt6.QtGui import QPainter, QColor, QBrush, QPen
 from PyQt6.QtWidgets import QTableWidget, QTableWidgetItem, QHeaderView
 from PyQt6.QtCore import Qt
 
@@ -47,38 +55,69 @@ from PyQt6.QtCore import Qt
 # QChart object ready to be embedded in a QChartView
 # ===============================================================
 
-def build_pie_chart(data: list[dict], title: str = "Spending Summary", show_legend_side: bool = True) -> QChart:
+def build_pie_chart(
+    data: list[dict],
+    title: str = "Spending Summary",
+    show_legend_side: bool = True,
+) -> QChart:
     """
     Build a pie chart QChart object from data.
     Returns the chart for embedding in UI (does not show dialog).
-    
+
     Args:
         data: List of dictionaries with 'category', 'amount', 'percent' keys
         title: Chart title
         show_legend_side: If True, show legend on the right side (vertical). If False, show on top.
     """
+    chart = QChart()
+    chart.setTitle(title)
+
     if not data:
-        chart = QChart()
-        chart.setTitle(title)
         return chart
-    
+
     series = QPieSeries()
     for row in data:
-        # label shows category + percent; value uses amount
-        series.append(f"{row['category']} ({row['percent']:.2f}%)", float(row['amount']))
+        amount = float(row["amount"])
+        if amount <= 0:
+            continue
+        label = f"{row['category']} ({row['percent']:.2f}%)"
+        slice_obj = series.append(label, amount)
+        slice_obj.setExploded(False)
+        slice_obj.setLabelVisible(False)
+        slice_obj.setPen(QColor("black"))
+        slice_obj.setBorderWidth(1)
 
-    chart = QChart()
+    if series.count() == 0:
+        chart.setTitle(f"{title} (No spendings to display)")
+        return chart
+
     chart.addSeries(series)
-    chart.setTitle(title)
-    
-    # Position legend on the right side (vertical) for better readability
+
     if show_legend_side:
         chart.legend().setAlignment(Qt.AlignmentFlag.AlignRight)
     else:
         chart.legend().setAlignment(Qt.AlignmentFlag.AlignTop)
-    
-    return chart
 
+    markers = chart.legend().markers(series)
+
+    def make_hover_handler(s: QPieSlice, marker):
+        def _hover(hovered: bool):
+            s.setExploded(hovered)
+            if hovered:
+                marker.setBrush(QBrush(QColor("#0078D7")))
+                marker.setLabelBrush(QBrush(QColor("green")))
+                marker.setPen(QPen(QColor("black")))
+            else:
+                marker.setBrush(QBrush(Qt.BrushStyle.NoBrush))
+                marker.setLabelBrush(QBrush(QColor("black")))
+                marker.setPen(QPen(Qt.PenStyle.NoPen))
+
+        return _hover
+
+    for slice_obj, marker in zip(series.slices(), markers):
+        slice_obj.hovered.connect(make_hover_handler(slice_obj, marker))
+
+    return chart
 
 # ===============================================================
 # Function: build_monthly_trends_pie_chart

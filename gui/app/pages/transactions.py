@@ -168,6 +168,9 @@ class TransactionsPage(QWidget):
         super().__init__()
         self.user = user
         self.user_manager = user_manager
+        self._sort_field = "Date"
+        self._sort_ascending = False
+        self._display_transactions: list[Transaction] = []
         
         # Initialize with error handling
         try:
@@ -341,21 +344,16 @@ class TransactionsPage(QWidget):
             return
             
         if not self.user or not hasattr(self.user, 'transactions'):
+            self._display_transactions = []
             self.table.setRowCount(0)
             return
         
         transactions = self.user.transactions or []
+        self._display_transactions = self._get_sorted_transactions(transactions)
         
-        # Sort by date (newest first)
-        try:
-            transactions = sorted(transactions, key=lambda t: t.date if hasattr(t, 'date') and t.date else datetime.min, reverse=True)
-        except Exception:
-            # Fallback if sorting fails
-            pass
+        self.table.setRowCount(len(self._display_transactions))
         
-        self.table.setRowCount(len(transactions))
-        
-        for row, txn in enumerate(transactions):
+        for row, txn in enumerate(self._display_transactions):
             # Date - with error handling
             try:
                 date_str = txn.date.strftime("%Y-%m-%d") if hasattr(txn, 'date') and txn.date else "N/A"
@@ -458,9 +456,40 @@ class TransactionsPage(QWidget):
         self.table.verticalHeader().setDefaultSectionSize(40)
 
         # Interactions
-        from functools import partial
         self.table.cellDoubleClicked.connect(self.open_details_dialog)
         self.table.cellClicked.connect(self.handle_cell_click)
+
+    def _get_sorted_transactions(self, transactions: list[Transaction]) -> list[Transaction]:
+        """Return transactions sorted according to the current sort selection."""
+        if not transactions:
+            return []
+
+        field = getattr(self, "_sort_field", "Date")
+        ascending = getattr(self, "_sort_ascending", False)
+
+        def safe_date(txn: Transaction):
+            if hasattr(txn, "date") and txn.date:
+                return txn.date
+            return datetime.min
+
+        def safe_category(txn: Transaction):
+            return (getattr(txn, "category", "") or "").lower()
+
+        def safe_description(txn: Transaction):
+            return (getattr(txn, "description", "") or "").lower()
+
+        key_map = {
+            "Date": safe_date,
+            "Category": safe_category,
+            "Description": safe_description,
+        }
+        key_func = key_map.get(field, safe_date)
+
+        try:
+            return sorted(transactions, key=key_func, reverse=not ascending)
+        except Exception:
+            # Fall back to original order if sorting fails
+            return list(transactions)
 
     def handle_cell_click(self, row: int, col: int):
         # Single-click edit via dialog
@@ -469,29 +498,28 @@ class TransactionsPage(QWidget):
     def open_edit_dialog_for_row(self, row: int):
         if row < 0:
             return
-        if not self.user or not hasattr(self.user, 'transactions'):
+        if not self._display_transactions:
             return
+        if row >= len(self._display_transactions):
+            return
+        txn = self._display_transactions[row]
         try:
-            txns = sorted(self.user.transactions, key=lambda t: t.date if hasattr(t, 'date') and t.date else datetime.min, reverse=True)
-            if row >= len(txns):
-                return
-            self.edit_transaction(txns[row])
+            self.edit_transaction(txn)
         except Exception:
             QMessageBox.warning(self, "Error", "Unable to load transaction for editing.")
 
     def open_details_dialog(self, row: int, col: int):
         if row < 0:
             return
-        if not self.user or not hasattr(self.user, 'transactions'):
+        if not self._display_transactions:
             return
+        if row >= len(self._display_transactions):
+            return
+        t = self._display_transactions[row]
         try:
-            txns = sorted(self.user.transactions, key=lambda t: t.date if hasattr(t, 'date') and t.date else datetime.min, reverse=True)
-            if row >= len(txns):
-                return
-            t = txns[row]
+            date_str = t.date.strftime('%Y-%m-%d') if hasattr(t, 'date') and t.date else "N/A"
         except Exception:
-            QMessageBox.warning(self, "Error", "Unable to load transaction details.")
-            return
+            date_str = "N/A"
         dlg = QDialog(self)
         dlg.setWindowTitle("Transaction Details")
         dlg.setMinimumSize(520, 420)
@@ -506,7 +534,7 @@ class TransactionsPage(QWidget):
             h.addWidget(v)
             h.addStretch()
             box.addLayout(h)
-        add("Date", t.date.strftime('%Y-%m-%d'))
+        add("Date", date_str)
         add("Description", t.description)
         add("Raw", t.description_raw or "-")
         add("Amount", f"{'-' if t.amount < 0 else '+'}${abs(t.amount):.2f}")
@@ -527,36 +555,31 @@ class TransactionsPage(QWidget):
     
     def filter_transactions(self):
         """Filter transactions based on search and category"""
-        search_text = self.search_input.text().lower()
+        if not hasattr(self, "_display_transactions") or not self._display_transactions:
+            return
+
+        search_text = (self.search_input.text() or "").lower()
         category_filter = self.category_filter.currentText()
-        
-        # Get sorted transactions to match table order
-        transactions = sorted(self.user.transactions, key=lambda t: t.date, reverse=True)
-        
-        for row in range(self.table.rowCount()):
-            should_show = True
-            
-            if row >= len(transactions):
-                should_show = False
+
+        total_rows = self.table.rowCount()
+        for row in range(total_rows):
+            if row >= len(self._display_transactions):
                 self.table.setRowHidden(row, True)
                 continue
-            
-            txn = transactions[row]
-            
-            # Search filter - search in description
+
+            txn = self._display_transactions[row]
+            should_show = True
+
             if search_text:
-                desc = (self.table.item(row, 1).text() if self.table.item(row, 1) else "").lower()
+                desc = (getattr(txn, 'description', '') or '').lower()
                 if search_text not in desc:
                     should_show = False
-            
-            # Category filter - check category column (column 2)
+
             if category_filter != "All Categories":
-                category_item = self.table.item(row, 2)
-                category = category_item.text() if category_item else ""
-                if category != category_filter:
+                txn_category = getattr(txn, 'category', None) or "Uncategorized"
+                if txn_category != category_filter:
                     should_show = False
-            
-            # Show/hide row
+
             self.table.setRowHidden(row, not should_show)
     
     def edit_transaction(self, transaction: Transaction):
@@ -632,20 +655,12 @@ class TransactionsPage(QWidget):
     def sort_transactions(self):
         field = self.sort_field.currentText()
         ascending = self.sort_dir.currentText() == "Ascending"
-        keyf = None
-        if field == "Date":
-            keyf = lambda t: t.date
-        elif field == "Category":
-            keyf = lambda t: (t.category or "")
-        elif field == "Description":
-            keyf = lambda t: (t.description or "")
-        if keyf is None:
-            return
-        self.user.transactions = sorted(self.user.transactions, key=keyf, reverse=not ascending)
-        if self.user_manager:
-            self.user_manager._users[self.user.username] = self.user
-            self.user_manager._save_users()
-        self.refresh_table()
+
+        # Persist preferences and refresh the table display
+        self._sort_field = field
+        self._sort_ascending = ascending
+        self.populate_table()
+        self.filter_transactions()
     
     def delete_transaction(self, transaction):
         """Delete a transaction"""

@@ -7,7 +7,7 @@ Provides the income vs spending tab with table and pie chart visualization.
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QGroupBox,
-    QTableWidget, QTableWidgetItem, QHeaderView, QPushButton
+    QTableWidget, QTableWidgetItem, QHeaderView, QPushButton, QScrollArea
 )
 from PyQt6.QtCharts import QChartView, QChart
 from PyQt6.QtGui import QPainter
@@ -31,7 +31,11 @@ class IncomeVsSpendingTab(QWidget):
         self._build_ui()
     
     def _build_ui(self):
-        layout = QVBoxLayout(self)
+        outer_layout = QVBoxLayout(self)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        content_widget = QWidget()
+        layout = QVBoxLayout(content_widget)
         layout.setSpacing(16)
         
         # Title
@@ -96,6 +100,9 @@ class IncomeVsSpendingTab(QWidget):
         content_layout.addWidget(table_group, 1)  # 50% width
         
         layout.addLayout(content_layout)
+
+        scroll.setWidget(content_widget)
+        outer_layout.addWidget(scroll)
     
     def set_transactions(self, transactions: List[Transaction]):
         """Update transactions and refresh display."""

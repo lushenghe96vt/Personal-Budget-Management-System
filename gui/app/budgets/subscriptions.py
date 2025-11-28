@@ -7,7 +7,7 @@ Provides the subscriptions tab showing subscription transactions and upcoming du
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QTableWidget, QTableWidgetItem,
-    QHeaderView, QGroupBox
+    QHeaderView, QGroupBox, QScrollArea
 )
 from typing import List
 
@@ -27,7 +27,11 @@ class SubscriptionsTab(QWidget):
         self._build_ui()
     
     def _build_ui(self):
-        layout = QVBoxLayout(self)
+        outer_layout = QVBoxLayout(self)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        content_widget = QWidget()
+        layout = QVBoxLayout(content_widget)
         layout.setSpacing(16)
         
         # Title
@@ -56,6 +60,9 @@ class SubscriptionsTab(QWidget):
         header.setSectionResizeMode(4, QHeaderView.ResizeMode.Stretch)
         
         layout.addWidget(self.subs_table)
+
+        scroll.setWidget(content_widget)
+        outer_layout.addWidget(scroll)
     
     def set_transactions(self, transactions: List[Transaction]):
         """Update transactions and refresh display."""
@@ -91,7 +98,7 @@ class SubscriptionsTab(QWidget):
         for r, t in enumerate(subs):
             self.subs_table.setItem(r, 0, QTableWidgetItem(t.date.strftime('%Y-%m-%d')))
             self.subs_table.setItem(r, 1, QTableWidgetItem(t.description))
-            self.subs_table.setItem(r, 2, QTableWidgetItem(f"-${abs(t.amount):.2f}"))
+            self.subs_table.setItem(r, 2, QTableWidgetItem(f"${abs(t.amount):.2f}"))
             
             next_due = getattr(t, 'next_due_date', None)
             self.subs_table.setItem(

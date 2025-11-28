@@ -6,7 +6,7 @@ Provides the overview tab with key metrics and insights.
 """
 
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QGroupBox
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QGroupBox, QScrollArea
 )
 from typing import List
 from datetime import datetime, timedelta
@@ -31,7 +31,11 @@ class OverviewTab(QWidget):
         self._build_ui()
     
     def _build_ui(self):
-        layout = QVBoxLayout(self)
+        outer_layout = QVBoxLayout(self)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        content_widget = QWidget()
+        layout = QVBoxLayout(content_widget)
         layout.setSpacing(20)
         
         # Month filter
@@ -67,6 +71,9 @@ class OverviewTab(QWidget):
         insights_layout.addWidget(self.insights_label)
         insights_group.setLayout(insights_layout)
         layout.addWidget(insights_group)
+
+        scroll.setWidget(content_widget)
+        outer_layout.addWidget(scroll)
     
     def set_transactions(self, transactions: List[Transaction]):
         """Update transactions and refresh display."""

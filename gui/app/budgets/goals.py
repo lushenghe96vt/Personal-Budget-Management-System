@@ -11,7 +11,7 @@ from PyQt6.QtWidgets import (
     QScrollArea
 )
 from typing import List, Dict, Optional
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal
 
 from core.models import Transaction
@@ -36,7 +36,11 @@ class GoalsTab(QWidget):
         self._build_ui()
     
     def _build_ui(self):
-        layout = QVBoxLayout(self)
+        outer_layout = QVBoxLayout(self)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        content_widget = QWidget()
+        layout = QVBoxLayout(content_widget)
         layout.setSpacing(24)
         layout.setContentsMargins(16, 16, 16, 16)
         
@@ -58,6 +62,12 @@ class GoalsTab(QWidget):
         overall_section = SectionCard("Overall Budget Goals")
         overall_section.setStyleSheet(Styles.GROUPBOX)
         
+        self.streak_card = MetricCard("Savings Goal Streak", "No data", "neutral", small_font=True)
+        overall_section.content_layout.addWidget(self.streak_card)
+
+        self.weekly_card = MetricCard("Weekly Spending", "$0.00", "neutral", small_font=True)
+        overall_section.content_layout.addWidget(self.weekly_card)
+
         # Spending Limit Card
         spending_card = SectionCard("Monthly Spending Limit")
         spending_card.setStyleSheet(Styles.GROUPBOX)
@@ -147,23 +157,14 @@ class GoalsTab(QWidget):
         self.percat_table.setColumnWidth(3, 120)  # Remaining column
         self.percat_table.setColumnWidth(4, 150)  # Progress column
         
-        # Wrap table in scroll area for scrolling
-        scroll_area = QScrollArea()
-        scroll_area.setWidget(self.percat_table)
-        scroll_area.setWidgetResizable(True)
-        scroll_area.setStyleSheet("""
-            QScrollArea {
-                border: none;
-                background-color: transparent;
-            }
-        """)
-        
-        percat_section.add_widget(scroll_area)
+        percat_section.add_widget(self.percat_table)
         content_layout.addWidget(percat_section, 1)  # 50% width
         
         layout.addLayout(content_layout)
-        
         layout.addStretch()
+
+        scroll.setWidget(content_widget)
+        outer_layout.addWidget(scroll)
     
     def set_user_and_transactions(self, user, transactions: List[Transaction]):
         """Update user and transactions, then refresh display."""
@@ -218,6 +219,30 @@ class GoalsTab(QWidget):
         
         if not self.user:
             return
+        
+        streak_count = getattr(self.user, "goal_streak_count", 0)
+        if streak_count and streak_count > 0:
+            self.streak_card.set_value(f"{streak_count} month(s)")
+            self.streak_card.set_variant("success")
+        else:
+            self.streak_card.set_value("No active streak")
+            self.streak_card.set_variant("neutral")
+
+        weekly_limit = getattr(self.user, "weekly_spending_limit", None)
+        weekly_data = self._calculate_weekly_spending(filtered, target_year, target_month)
+        if weekly_limit and weekly_limit > 0:
+            weekly_spent = weekly_data["spent"]
+            ratio = (weekly_spent / weekly_limit) * 100 if weekly_limit else 0
+            self.weekly_card.set_value(f"${weekly_spent:.2f} of ${weekly_limit:.2f}")
+            if ratio >= 100:
+                self.weekly_card.set_variant("danger")
+            elif ratio >= 75:
+                self.weekly_card.set_variant("warning")
+            else:
+                self.weekly_card.set_variant("info")
+        else:
+            self.weekly_card.set_value("No weekly limit")
+            self.weekly_card.set_variant("neutral")
         
         # Calculate number of months for "All Time" view
         num_months = 1  # Default to 1 month for specific month filters
@@ -313,3 +338,19 @@ class GoalsTab(QWidget):
                 self.percat_table.setCellWidget(row, 4, pb)
         else:
             self.percat_table.setRowCount(0)
+
+    def _calculate_weekly_spending(self, transactions: List[Transaction], year: Optional[int], month: Optional[int]) -> dict:
+        """Calculate current-week spending for a given filtered list."""
+        if not transactions:
+            return {"spent": 0.0}
+        today = datetime.now()
+        if year and month:
+            today = datetime(year, month, 1)
+        week_start = today - timedelta(days=today.weekday())
+        week_end = week_start + timedelta(days=7)
+
+        total = 0.0
+        for txn in transactions:
+            if getattr(txn, "amount", 0) < 0 and getattr(txn, "date", None) and week_start <= txn.date < week_end:
+                total += float(abs(txn.amount))
+        return {"spent": total}

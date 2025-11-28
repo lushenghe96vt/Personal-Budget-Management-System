@@ -7,7 +7,7 @@ Provides the forecast tab with chart and table visualization.
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTableWidget, QTableWidgetItem,
-    QHeaderView, QGroupBox, QPushButton
+    QHeaderView, QGroupBox, QPushButton, QScrollArea
 )
 from PyQt6.QtCharts import QChart, QChartView
 from PyQt6.QtGui import QPainter
@@ -29,7 +29,11 @@ class ForecastTab(QWidget):
         self._build_ui()
     
     def _build_ui(self):
-        layout = QVBoxLayout(self)
+        outer_layout = QVBoxLayout(self)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        content_widget = QWidget()
+        layout = QVBoxLayout(content_widget)
         layout.setSpacing(20)
         
         # Title
@@ -86,6 +90,9 @@ class ForecastTab(QWidget):
         content_layout.addWidget(table_group, 1)  # 50% width
         
         layout.addLayout(content_layout)
+
+        scroll.setWidget(content_widget)
+        outer_layout.addWidget(scroll)
     
     def set_transactions(self, transactions: List[Transaction]):
         """Update transactions and refresh display."""

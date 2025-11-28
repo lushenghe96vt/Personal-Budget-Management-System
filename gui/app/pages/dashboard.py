@@ -25,7 +25,7 @@ from PyQt6.QtCore import Qt, pyqtSignal, QThread, pyqtSlot
 from PyQt6.QtGui import QFont, QAction, QPixmap, QIcon
 from pathlib import Path
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal
 
 # Add project root to path for imports
@@ -38,6 +38,7 @@ from core.analytics import (
     calculate_total_spending, calculate_total_income, calculate_net_balance,
     get_top_spending_categories, get_period_summary, check_spending_limit
 )
+from core.models import Transaction
 from ..models.user import User
 from ..style import Styles
 from gui.widgets.components import PageHeader, SectionCard, StyledButton
@@ -59,6 +60,7 @@ class DashboardPage(QWidget):
         super().__init__()
         self.current_user = current_user
         self.user_manager = user_manager
+        self._alert_state = {"monthly": False, "weekly": False}
         self.setup_ui()
     
     def setup_ui(self):
@@ -118,6 +120,13 @@ class DashboardPage(QWidget):
         # Budget status - converted to MetricCard with smaller font
         self.budget_status_card = MetricCard("Budget Status", "No limit set", "neutral", small_font=True)
         insights_row.addWidget(self.budget_status_card)
+
+        # Savings streak metric
+        self.goal_streak_card = MetricCard("Savings Streak", "No data", "neutral", small_font=True)
+        insights_row.addWidget(self.goal_streak_card)
+
+        self.weekly_progress_card = MetricCard("Weekly Spending", "No data", "neutral", small_font=True)
+        insights_row.addWidget(self.weekly_progress_card)
         
         layout.addLayout(insights_row)
         
@@ -536,6 +545,12 @@ class DashboardPage(QWidget):
     def set_current_user(self, user):
         """Update the current user (welcome message is now in sidebar)"""
         self.current_user = user
+        self._alert_state = {
+            "monthly_threshold": False,
+            "monthly_limit": False,
+            "weekly_threshold": False,
+            "weekly_limit": False,
+        }
         
         # Update dashboard stats
         self.update_dashboard_stats()
@@ -568,6 +583,10 @@ class DashboardPage(QWidget):
             self.net_card.set_value(f"${float(net_balance):.2f}")
             self.transactions_card.set_value(str(len(transactions)))
             self.categories_card.set_value(str(category_count))
+
+            streak_count = getattr(self.current_user, "goal_streak_count", 0)
+            self._update_streak_card(streak_count)
+            self._update_weekly_card(transactions)
             
             # Update top spending category insight - using MetricCard
             if transactions:
@@ -668,45 +687,7 @@ class DashboardPage(QWidget):
             # Silently handle errors to prevent crashes
             pass
         
-        # Budget alerts (outside try block to ensure they always run)
-        try:
-            from datetime import datetime as _dt
-            if getattr(self.current_user, 'monthly_spending_limit', None):
-                # compute current month spending
-                now = _dt.now()
-                try:
-                    month_spend = sum(
-                        abs(t.amount) for t in transactions
-                        if (hasattr(t, 'amount') and hasattr(t, 'date') and t.amount < 0 
-                            and t.date and t.date.year == now.year and t.date.month == now.month)
-                    )
-                    limit = float(self.current_user.monthly_spending_limit)
-                    if limit > 0:
-                        ratio = (float(month_spend) / limit) * 100.0
-                        if ratio >= 100:
-                            self.notify.emit("You have reached your monthly spending limit.", "warning")
-                        elif ratio >= 75:
-                            self.notify.emit(f"You have used {ratio:.0f}% of your monthly spending limit.", "info")
-                except Exception:
-                    pass
-
-            # Upcoming subscriptions (Luke fields)
-            upcoming = 0
-            try:
-                now = _dt.now()
-                for t in transactions:
-                    if not hasattr(t, 'next_due_date') or not hasattr(t, 'is_subscription'):
-                        continue
-                    nd = getattr(t, 'next_due_date', None)
-                    is_sub = getattr(t, 'is_subscription', False)
-                if is_sub and nd and (0 <= (nd - now).days <= 14):
-                    upcoming += 1
-            except Exception:
-                pass
-            if upcoming > 0:
-                self.notify.emit(f"{upcoming} subscription payment(s) due soon.", "warning")
-        except Exception:
-            pass
+        self._emit_budget_alerts(transactions)
 
     def update_streak_badge(self):
         try:
@@ -717,5 +698,115 @@ class DashboardPage(QWidget):
                 self.streak_label.setText(f"Goal streak: {streak} month(s) in a row")
             else:
                 self.streak_label.setText("")
+            self._update_streak_card(streak)
         except Exception:
             self.streak_label.setText("")
+
+    def _update_streak_card(self, streak: int):
+        if not hasattr(self, "goal_streak_card"):
+            return
+        if streak and streak > 0:
+            self.goal_streak_card.set_value(f"{streak} month(s)")
+            self.goal_streak_card.set_variant("success")
+        else:
+            self.goal_streak_card.set_value("No active streak")
+            self.goal_streak_card.set_variant("neutral")
+
+    def _update_weekly_card(self, transactions: list[Transaction]):
+        if not hasattr(self, "weekly_progress_card"):
+            return
+        weekly_limit = getattr(self.current_user, "weekly_spending_limit", None)
+        if not weekly_limit or weekly_limit <= 0:
+            self.weekly_progress_card.set_value("No weekly limit")
+            self.weekly_progress_card.set_variant("neutral")
+            return
+
+        now = datetime.now()
+        week_start = datetime(now.year, now.month, now.day) - timedelta(days=now.weekday())
+        week_end = week_start + timedelta(days=7)
+
+        spent = 0.0
+        for txn in transactions:
+            if getattr(txn, "amount", 0) < 0 and getattr(txn, "date", None) and week_start <= txn.date < week_end:
+                spent += float(abs(txn.amount))
+
+        ratio = (spent / weekly_limit) * 100 if weekly_limit else 0
+        self.weekly_progress_card.set_value(f"${spent:.2f} of ${weekly_limit:.2f}")
+        if ratio >= 100:
+            self.weekly_progress_card.set_variant("danger")
+        elif ratio >= 75:
+            self.weekly_progress_card.set_variant("warning")
+        else:
+            self.weekly_progress_card.set_variant("info")
+
+    def _emit_budget_alerts(self, transactions: list[Transaction]):
+        if not self.current_user:
+            return
+        try:
+            now = datetime.now()
+
+            def within_current_month(txn: Transaction) -> bool:
+                return (
+                    hasattr(txn, "date")
+                    and txn.date
+                    and txn.date.year == now.year
+                    and txn.date.month == now.month
+                )
+
+            def spending_sum(predicate):
+                total = 0.0
+                for txn in transactions:
+                    if getattr(txn, "amount", 0) < 0 and predicate(txn):
+                        total += float(abs(txn.amount))
+                return total
+
+            monthly_limit = getattr(self.current_user, "monthly_spending_limit", None)
+            monthly_threshold = getattr(self.current_user, "monthly_alert_threshold_pct", None) or 75
+            if monthly_limit and monthly_limit > 0:
+                month_spend = spending_sum(within_current_month)
+                ratio = (month_spend / float(monthly_limit)) * 100.0 if monthly_limit else 0
+                if ratio >= 100 and not self._alert_state.get("monthly_limit", False):
+                    self.notify.emit("You have reached your monthly spending limit.", "warning")
+                    self._alert_state["monthly_limit"] = True
+                elif ratio >= monthly_threshold and not self._alert_state.get("monthly_threshold", False):
+                    self.notify.emit(f"You have used {ratio:.0f}% of your monthly spending limit.", "info")
+                    self._alert_state["monthly_threshold"] = True
+                elif ratio < monthly_threshold:
+                    self._alert_state["monthly_threshold"] = False
+                    self._alert_state["monthly_limit"] = False
+
+            weekly_limit = getattr(self.current_user, "weekly_spending_limit", None)
+            weekly_threshold = getattr(self.current_user, "weekly_alert_threshold_pct", None) or 75
+            if weekly_limit and weekly_limit > 0:
+                week_start = datetime(now.year, now.month, now.day) - timedelta(days=now.weekday())
+                week_end = week_start + timedelta(days=7)
+
+                def within_week(txn: Transaction) -> bool:
+                    return hasattr(txn, "date") and txn.date and week_start <= txn.date < week_end
+
+                week_spend = spending_sum(within_week)
+                week_ratio = (week_spend / float(weekly_limit)) * 100.0 if weekly_limit else 0
+                if week_ratio >= 100 and not self._alert_state.get("weekly_limit", False):
+                    self.notify.emit("You have reached your weekly spending limit.", "warning")
+                    self._alert_state["weekly_limit"] = True
+                elif week_ratio >= weekly_threshold and not self._alert_state.get("weekly_threshold", False):
+                    self.notify.emit(f"You have used {week_ratio:.0f}% of your weekly spending limit.", "info")
+                    self._alert_state["weekly_threshold"] = True
+                elif week_ratio < weekly_threshold:
+                    self._alert_state["weekly_threshold"] = False
+                    self._alert_state["weekly_limit"] = False
+
+            upcoming = 0
+            try:
+                for txn in transactions:
+                    if not hasattr(txn, "next_due_date") or not getattr(txn, "is_subscription", False):
+                        continue
+                    nd = getattr(txn, "next_due_date", None)
+                    if nd and (0 <= (nd - now).days <= 14):
+                        upcoming += 1
+            except Exception:
+                pass
+            if upcoming > 0:
+                self.notify.emit(f"{upcoming} subscription payment(s) due soon.", "warning")
+        except Exception:
+            pass
