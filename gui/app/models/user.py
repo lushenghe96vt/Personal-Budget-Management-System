@@ -32,6 +32,7 @@ sys.path.insert(0, str(project_root))
 from core.models import Transaction
 from core.analytics.goals import compute_goal_streak
 from core.analytics.spending import get_spending_by_category_dict
+from core.analytics.months import get_monthly_trends
 from core.analytics.subscriptions import annotate_subscription_metadata
 
 
@@ -160,6 +161,33 @@ class User:
             custom_interval_days=data.get('custom_interval_days', 30),
             alert_sent=data.get('alert_sent', False)
         )
+    
+    def average_balance_last_3_months(self):
+        """Return the average NET balance over the last 3 months."""
+        if not self.transactions:
+            return 0.0
+
+        trends = get_monthly_trends(self.transactions)
+
+        if len(trends) == 0:
+            return 0.0
+
+        last = trends[-3:]
+        net_values = [t["net"] for t in last]
+
+        return float(sum(net_values) / len(net_values))
+
+    def monthly_goal_tracker(self):
+        """Return number of consecutive months meeting savings goals."""
+        if not self.transactions:
+            return 0
+
+        goal = self.monthly_savings_goal
+        if not goal:
+            return 0
+
+        streak = compute_goal_streak(self.transactions, goal)
+        return int(streak)
 
 
 class UserManager:

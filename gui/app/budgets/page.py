@@ -7,8 +7,7 @@ This is the refactored version of the monolithic budgets.py.
 """
 
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QTabWidget, QWidget as QWidgetType
+    QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QTabWidget
 )
 from PyQt6.QtCore import pyqtSignal
 from typing import Optional
@@ -21,6 +20,7 @@ from .goals import GoalsTab
 from .income_vs_spending import IncomeVsSpendingTab
 from .forecast import ForecastTab
 from .subscriptions import SubscriptionsTab
+from .loan_tab import LoanTab
 from ..style import Styles
 from gui.widgets.components import PageHeader
 from core.exportWin import save_window_dialog
@@ -90,22 +90,32 @@ class BudgetAnalysisPage(QWidget):
         
         self.subscriptions_tab = SubscriptionsTab()
         self.tab_widget.addTab(self.subscriptions_tab, "Subscriptions")
+
+        self.loan_tab = LoanTab()
+        self.tab_widget.addTab(self.loan_tab, "Loan Calculator")
         
         layout.addWidget(self.tab_widget)
         self.setLayout(layout)
     
     def update_analysis(self):
         """Update all tabs with current user transactions."""
-        if not self.user or not self.user.transactions:
+        if not self.user:
+            return
+
+        if not self.user.transactions:
+            self.loan_tab.set_user(self.user)
             return
         
         if self.user_manager:
             try:
                 self.user_manager.recompute_goal_streak(self.user.username)
-                self.user = self.user_manager.get_user(self.user.username) or self.user
+                refreshed_user = self.user_manager.get_user(self.user.username)
+                if refreshed_user:
+                    self.user = refreshed_user
             except Exception:
+                # Non-critical failures shouldn't block UI refresh.
                 pass
-        
+
         transactions = self.user.transactions
         
         # Update all tabs
@@ -116,6 +126,7 @@ class BudgetAnalysisPage(QWidget):
         self.income_vs_spending_tab.set_transactions(transactions)
         self.forecast_tab.set_transactions(transactions)
         self.subscriptions_tab.set_transactions(transactions)
+        self.loan_tab.set_user(self.user)
     
     def set_user(self, user: User) -> None:
         """Update the current user and refresh all tabs."""
