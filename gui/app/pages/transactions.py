@@ -289,6 +289,9 @@ class TransactionsPage(QWidget):
         self.table.verticalHeader().setDefaultSectionSize(50)
         # Allow rows to resize based on content
         self.table.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+        # Connect table signals once to avoid duplicate dialog launches
+        self.table.cellDoubleClicked.connect(self.open_details_dialog)
+        self.table.cellClicked.connect(self.handle_cell_click)
         
         # Action buttons
         button_layout = QHBoxLayout()
@@ -454,10 +457,6 @@ class TransactionsPage(QWidget):
         self.table.setColumnWidth(4, 100)  # Actions column
         # Standard row height
         self.table.verticalHeader().setDefaultSectionSize(40)
-
-        # Interactions
-        self.table.cellDoubleClicked.connect(self.open_details_dialog)
-        self.table.cellClicked.connect(self.handle_cell_click)
 
     def _get_sorted_transactions(self, transactions: list[Transaction]) -> list[Transaction]:
         """Return transactions sorted according to the current sort selection."""

@@ -263,8 +263,8 @@ class Styles:
         QComboBox QAbstractItemView {
             border: 2px solid #ddd;
             border-radius: 6px;
-            selection-background-color: #3498db;
-            selection-color: white;
+            selection-background-color: #ddebff;
+            selection-color: #2c3e50;
         }
     """
     
@@ -300,6 +300,10 @@ class Styles:
         }
         QTableWidget::item {
             padding: 10px;
+        }
+        QTableWidget::item:selected {
+            background-color: #ddebff;
+            color: #2c3e50;
         }
     """
     
@@ -529,8 +533,8 @@ class Styles:
         QComboBox QAbstractItemView {
             border: 1px solid #ddd;
             border-radius: 4px;
-            selection-background-color: #3498db;
-            selection-color: white;
+            selection-background-color: #ddebff;
+            selection-color: #2c3e50;
         }
     """
     

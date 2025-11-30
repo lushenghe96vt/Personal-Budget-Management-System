@@ -17,7 +17,7 @@ Implements:
   - Quick action buttons for navigation
 """
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, 
+    QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel, QPushButton, 
     QMenu, QMenuBar, QFileDialog, QMessageBox, QFrame, QProgressDialog,
     QScrollArea, QInputDialog
 )
@@ -83,52 +83,48 @@ class DashboardPage(QWidget):
         self.streak_label.setStyleSheet(Styles.LABEL_SECONDARY)
         layout.addWidget(self.streak_label)
 
-        # Primary KPI Cards Row
-        kpi_row = QHBoxLayout()
-        kpi_row.setSpacing(16)
+        # Overview heading for metrics grid
+        overview_heading = QLabel("Account Overview")
+        overview_heading.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        overview_heading.setStyleSheet("""
+            QLabel {
+                color: #2c3e50;
+                font-size: 20px;
+                font-weight: 600;
+            }
+        """)
+        layout.addWidget(overview_heading)
+
+        metrics_grid = QGridLayout()
+        metrics_grid.setSpacing(16)
+        metrics_grid.setContentsMargins(0, 0, 0, 0)
+        for i in range(3):
+            metrics_grid.setColumnStretch(i, 1)
         
-        # Total Spending Card
+        # Metric cards (9 total, arranged 3x3)
         self.spending_card = MetricCard("Total Spending", "$0.00", "danger")
-        kpi_row.addWidget(self.spending_card)
-        
-        # Total Income Card
         self.income_card = MetricCard("Total Income", "$0.00", "success")
-        kpi_row.addWidget(self.income_card)
-        
-        # Net Balance Card
         self.net_card = MetricCard("Net Balance", "$0.00", "info")
-        kpi_row.addWidget(self.net_card)
-        
-        # Transactions Count Card
         self.transactions_card = MetricCard("Transactions", "0", "info")
-        kpi_row.addWidget(self.transactions_card)
-        
-        layout.addLayout(kpi_row)
-
-        # Secondary metrics row - all using MetricCard for consistency
-        insights_row = QHBoxLayout()
-        insights_row.setSpacing(16)
-        
-        # Categories count
         self.categories_card = MetricCard("Active Categories", "0", "neutral")
-        insights_row.addWidget(self.categories_card)
-        
-        # Top spending category - converted to MetricCard with smaller font
         self.top_category_card = MetricCard("Top Spending Category", "No data", "info", small_font=True)
-        insights_row.addWidget(self.top_category_card)
-        
-        # Budget status - converted to MetricCard with smaller font
         self.budget_status_card = MetricCard("Budget Status", "No limit set", "neutral", small_font=True)
-        insights_row.addWidget(self.budget_status_card)
-
-        # Savings streak metric
         self.goal_streak_card = MetricCard("Savings Streak", "No data", "neutral", small_font=True)
-        insights_row.addWidget(self.goal_streak_card)
-
         self.weekly_progress_card = MetricCard("Weekly Spending", "No data", "neutral", small_font=True)
-        insights_row.addWidget(self.weekly_progress_card)
-        
-        layout.addLayout(insights_row)
+
+        metrics_grid.addWidget(self.spending_card, 0, 0)
+        metrics_grid.addWidget(self.income_card, 0, 1)
+        metrics_grid.addWidget(self.net_card, 0, 2)
+
+        metrics_grid.addWidget(self.transactions_card, 1, 0)
+        metrics_grid.addWidget(self.categories_card, 1, 1)
+        metrics_grid.addWidget(self.top_category_card, 1, 2)
+
+        metrics_grid.addWidget(self.budget_status_card, 2, 0)
+        metrics_grid.addWidget(self.goal_streak_card, 2, 1)
+        metrics_grid.addWidget(self.weekly_progress_card, 2, 2)
+
+        layout.addLayout(metrics_grid)
         
         # Quick Actions section - white card matching metric cards with margins
         actions_widget = QWidget()
