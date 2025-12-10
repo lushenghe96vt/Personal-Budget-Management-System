@@ -168,7 +168,7 @@ def dicts_to_transactions(
             id=f"row:{i}",  # unique synthetic ID
             date=date,  # parsed date
             posted_date=None,  # unused
-            description=norm_desc or desc,  # normalized description
+            description=beautify_description(norm_desc or desc),  # normalized description
             description_raw=desc,  # raw text
             amount=amt,  # transaction amount
             balance=bal,  # account balance (optional)
@@ -254,3 +254,57 @@ def _normalize_for_match(s: str) -> str:
 
 def _prep_desc_for_rules(raw_desc: str) -> str:
     return _normalize_for_match(_strip_boilerplate(raw_desc or ""))  # full cleanup
+
+# -------------------- description beautification (UI-facing) --------------------
+
+_COMMON_ABBREVIATIONS = {
+    "mktp": "Marketplace",
+    "stn": "Station",
+    "dept": "Department",
+    "svc": "Service",
+    "ctr": "Center",
+    "intl": "International",
+    "co": "Co",
+    "corp": "Corp",
+    "llc": "LLC",
+    "inc": "Inc",
+}
+
+_SMALL_WORDS = {
+    "and", "or", "the", "for", "to", "of", "at", "in", "on", "by", "as"
+}
+
+
+def beautify_description(s: str) -> str:
+    """Improve readability of transaction descriptions for UI display."""
+    if not s:
+        return ""
+
+    # Normalize spacing and punctuation
+    s = _PUNCT_RE.sub(" ", s)
+    s = _SPACE_RE.sub(" ", s).strip()
+
+    # Apply abbreviation replacements
+    tokens = s.split()
+    improved = []
+    for t in tokens:
+        low = t.lower()
+        improved.append(_COMMON_ABBREVIATIONS.get(low, t))
+
+    # Smart title casing
+    out = []
+    for i, w in enumerate(improved):
+        lw = w.lower()
+        if i == 0 or lw not in _SMALL_WORDS:
+            out.append(w.capitalize())
+        else:
+            out.append(lw)
+
+    # Restore known uppercase tokens
+    for idx, w in enumerate(out):
+        if w.lower() in {"us", "usa"}:
+            out[idx] = w.upper()
+        if w.lower() in {"llc", "inc", "co", "corp"}:
+            out[idx] = w.upper()
+
+    return " ".join(out).strip()
