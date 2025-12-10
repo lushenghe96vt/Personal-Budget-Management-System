@@ -11,6 +11,7 @@ import smtplib
 import os
 from dotenv import load_dotenv
 
+# Address and password stored in an environment file not on the repo
 load_dotenv()
 
 SMTP_SERVER = "smtp.gmail.com"
