@@ -30,6 +30,12 @@ project_root = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(project_root))
 
 from core.models import Transaction
+<<<<<<< Updated upstream
+=======
+from core.analytics.goals import compute_goal_streak
+from core.analytics.spending import get_spending_by_category_dict
+from core.analytics.months import get_monthly_trends
+>>>>>>> Stashed changes
 
 
 @dataclass
@@ -130,6 +136,33 @@ class User:
             source_upload_id=data.get('source_upload_id', ''),
             raw=data.get('raw', {})
         )
+    
+    def average_balance_last_3_months(self):
+        """Return the average NET balance over the last 3 months."""
+        if not self.transactions:
+            return 0.0
+
+        trends = get_monthly_trends(self.transactions)
+
+        if len(trends) == 0:
+            return 0.0
+
+        last = trends[-3:]
+        net_values = [t["net"] for t in last]
+
+        return float(sum(net_values) / len(net_values))
+
+    def monthly_goal_tracker(self):
+        """Return number of consecutive months meeting savings goals."""
+        if not self.transactions:
+            return 0
+
+        goal = self.monthly_savings_goal
+        if not goal:
+            return 0
+
+        streak = compute_goal_streak(self.transactions, goal)
+        return int(streak)
 
 
 class UserManager:
@@ -322,6 +355,7 @@ class UserManager:
         if not self.user_exists(username):
             return {}
         
+<<<<<<< Updated upstream
         category_totals = {}
         for txn in self._users[username].transactions:
             if txn.amount < 0:  # Only spending (negative amounts)
@@ -331,3 +365,6 @@ class UserManager:
                 category_totals[category] += abs(txn.amount)
         
         return category_totals
+=======
+        return get_spending_by_category_dict(self._users[username].transactions)
+>>>>>>> Stashed changes
