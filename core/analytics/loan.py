@@ -1,4 +1,6 @@
 """
+Author: Sheng Lu
+
 loan compatability
 Personal Budget Management System – Loan
 

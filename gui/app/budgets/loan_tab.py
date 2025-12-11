@@ -1,3 +1,12 @@
+"""
+Author: Sheng Lu
+
+Monthly Trends Tab Component
+Personal Budget Management System – Monthly Trends Analysis
+
+Provides the monthly trends tab showing income, spending, and net by month.
+"""
+
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QGroupBox, QLineEdit, QComboBox, QPushButton,

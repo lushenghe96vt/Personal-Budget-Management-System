@@ -1,4 +1,6 @@
 """
+Author: Sheng Lu
+
 Spending Analytics
 Personal Budget Management System – Spending Calculations & Analysis
 
