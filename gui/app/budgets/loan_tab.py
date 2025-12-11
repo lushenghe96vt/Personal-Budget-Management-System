@@ -27,12 +27,29 @@ class LoanTab(QWidget):
         self.user = user
 
     def _build_ui(self):
-        layout = QVBoxLayout(self)
-        layout.setSpacing(20)
+        outer_layout = QVBoxLayout(self)
+        outer_layout.setContentsMargins(0, 0, 0, 0)
+
+        self.scroll = QScrollArea()
+        self.scroll.setWidgetResizable(True)
+        self.scroll.setStyleSheet("border: none;")
+        outer_layout.addWidget(self.scroll)
+
+        container = QWidget()
+        container_layout = QVBoxLayout(container)
+        container_layout.setContentsMargins(24, 24, 24, 24)
+        container_layout.setSpacing(24)
 
         title = QLabel("Loan Eligibility & Payment Calculator")
         title.setStyleSheet(Styles.LABEL_SECTION)
-        layout.addWidget(title)
+        container_layout.addWidget(title)
+
+        columns = QGridLayout()
+        columns.setHorizontalSpacing(24)
+        columns.setVerticalSpacing(24)
+        columns.setColumnStretch(0, 1)
+        columns.setColumnStretch(1, 1)
+        container_layout.addLayout(columns)
 
         # ---------------------------
         # INPUT FORM
@@ -90,32 +107,24 @@ class LoanTab(QWidget):
 
         form_layout.addWidget(submit_btn)
         form_group.setLayout(form_layout)
-        layout.addWidget(form_group)
+        columns.addWidget(form_group, 0, 0)
 
         # ---------------------------
         # OUTPUT SECTION (clean card)
         # ---------------------------
         self.result_group = QGroupBox("Loan Results")
         self.result_group.setStyleSheet(Styles.GROUPBOX)
-
-        self.result_group.setMinimumWidth(600)
         self.result_group.setMinimumHeight(150)
 
-        # Inner layout for card contents
         self.result_layout = QVBoxLayout()
         self.result_layout.setContentsMargins(24, 24, 24, 24)
         self.result_layout.setSpacing(18)
         self.result_group.setLayout(self.result_layout)
 
-        # ---- SCROLL AREA WRAPPER ----
-        self.scroll = QScrollArea()
-        self.scroll.setWidgetResizable(True)
-        self.scroll.setStyleSheet("border: none;")
+        columns.addWidget(self.result_group, 0, 1)
 
-        self.scroll.setWidget(self.result_group)
-
-        # Add scroll area to page
-        layout.addWidget(self.scroll, stretch=1)
+        container_layout.addStretch()
+        self.scroll.setWidget(container)
 
     # -----------------------------------------
     # LOGIC → Run loan calculation

@@ -17,7 +17,7 @@ Implements:
   - Spending analysis by category
 """
 from dataclasses import dataclass, field
-from typing import Optional, List
+from typing import Optional, List, Dict
 import hashlib
 import json
 import os
@@ -30,12 +30,10 @@ project_root = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(project_root))
 
 from core.models import Transaction
-<<<<<<< Updated upstream
-=======
 from core.analytics.goals import compute_goal_streak
 from core.analytics.spending import get_spending_by_category_dict
 from core.analytics.months import get_monthly_trends
->>>>>>> Stashed changes
+from core.analytics.subscriptions import annotate_subscription_metadata
 
 
 @dataclass
@@ -50,6 +48,14 @@ class User:
     created_at: Optional[datetime] = None
     last_login: Optional[datetime] = None
     transactions: List[Transaction] = field(default_factory=list)
+    # Budget/goal fields
+    monthly_spending_limit: Optional[float] = None  # overall cap for monthly spend
+    weekly_spending_limit: Optional[float] = None   # cap for weekly spend
+    monthly_savings_goal: Optional[float] = None    # target savings per month
+    per_category_limits: Dict[str, float] = field(default_factory=dict)  # optional caps
+    monthly_alert_threshold_pct: Optional[int] = 75  # percentage trigger for monthly alerts
+    weekly_alert_threshold_pct: Optional[int] = 75   # percentage trigger for weekly alerts
+    goal_streak_count: int = 0  # number of consecutive months meeting savings goal
     
     def __post_init__(self):
         if self.created_at is None:
@@ -68,7 +74,14 @@ class User:
             'phone': self.phone,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'last_login': self.last_login.isoformat() if self.last_login else None,
-            'transactions': [self._transaction_to_dict(txn) for txn in self.transactions]
+            'transactions': [self._transaction_to_dict(txn) for txn in self.transactions],
+            'monthly_spending_limit': self.monthly_spending_limit,
+            'weekly_spending_limit': self.weekly_spending_limit,
+            'monthly_savings_goal': self.monthly_savings_goal,
+            'per_category_limits': self.per_category_limits,
+            'monthly_alert_threshold_pct': self.monthly_alert_threshold_pct,
+            'weekly_alert_threshold_pct': self.weekly_alert_threshold_pct,
+            'goal_streak_count': self.goal_streak_count,
         }
     
     @classmethod
@@ -82,7 +95,14 @@ class User:
             last_name=data['last_name'],
             phone=data.get('phone'),
             created_at=datetime.fromisoformat(data['created_at']) if data.get('created_at') else None,
-            last_login=datetime.fromisoformat(data['last_login']) if data.get('last_login') else None
+            last_login=datetime.fromisoformat(data['last_login']) if data.get('last_login') else None,
+            monthly_spending_limit=data.get('monthly_spending_limit'),
+            weekly_spending_limit=data.get('weekly_spending_limit'),
+            monthly_savings_goal=data.get('monthly_savings_goal'),
+            per_category_limits=data.get('per_category_limits', {}),
+            monthly_alert_threshold_pct=data.get('monthly_alert_threshold_pct', 75),
+            weekly_alert_threshold_pct=data.get('weekly_alert_threshold_pct', 75),
+            goal_streak_count=int(data.get('goal_streak_count', 0)),
         )
         
         # Load transactions if they exist
@@ -99,18 +119,20 @@ class User:
             'date': txn.date.isoformat(),
             'description': txn.description,
             'amount': str(txn.amount),
-            'posted_date': txn.posted_date.isoformat() if txn.posted_date else None,
             'description_raw': txn.description_raw,
-            'merchant': txn.merchant,
             'currency': txn.currency,
-            'txn_type': txn.txn_type,
-            'balance': str(txn.balance) if txn.balance else None,
             'category': txn.category,
             'notes': txn.notes,
             'user_override': txn.user_override,
+            'statement_month': txn.statement_month,
             'source_name': txn.source_name,
             'source_upload_id': txn.source_upload_id,
-            'raw': txn.raw
+            'raw': txn.raw,
+            'is_subscription': txn.is_subscription,
+            'next_due_date': txn.next_due_date.isoformat() if txn.next_due_date else None,
+            'renewal_interval_type': txn.renewal_interval_type,
+            'custom_interval_days': txn.custom_interval_days,
+            'alert_sent': txn.alert_sent
         }
     
     @staticmethod
@@ -123,18 +145,21 @@ class User:
             date=datetime.fromisoformat(data['date']),
             description=data['description'],
             amount=Decimal(data['amount']),
-            posted_date=datetime.fromisoformat(data['posted_date']) if data.get('posted_date') else None,
             description_raw=data.get('description_raw', ''),
             merchant=data.get('merchant', ''),
             currency=data.get('currency', 'USD'),
-            txn_type=data.get('txn_type', ''),
-            balance=Decimal(data['balance']) if data.get('balance') else None,
             category=data.get('category', 'Uncategorized'),
             notes=data.get('notes', ''),
             user_override=data.get('user_override', False),
+            statement_month=data.get('statement_month', ''),
             source_name=data.get('source_name', ''),
             source_upload_id=data.get('source_upload_id', ''),
-            raw=data.get('raw', {})
+            raw=data.get('raw', {}),
+            is_subscription=data.get('is_subscription', False),
+            next_due_date=datetime.fromisoformat(data['next_due_date']) if data.get('next_due_date') else None,
+            renewal_interval_type=data.get('renewal_interval_type', 'monthly'),
+            custom_interval_days=data.get('custom_interval_days', 30),
+            alert_sent=data.get('alert_sent', False)
         )
     
     def average_balance_last_3_months(self):
@@ -185,16 +210,29 @@ class UserManager:
             try:
                 with open(self.users_file, 'r') as f:
                     data = json.load(f)
-                    return {username: User.from_dict(user_data) for username, user_data in data.items()}
+                    users = {username: User.from_dict(user_data) for username, user_data in data.items()}
+                    for user in users.values():
+                        self._refresh_subscription_metadata(user)
+                    return users
             except (json.JSONDecodeError, KeyError):
                 return {}
         return {}
     
     def _save_users(self):
         """Save users to storage"""
-        data = {username: user.to_dict() for username, user in self._users.items()}
+        data = {}
+        for username, user in self._users.items():
+            self._refresh_subscription_metadata(user)
+            data[username] = user.to_dict()
         with open(self.users_file, 'w') as f:
             json.dump(data, f, indent=2)
+
+    def _refresh_subscription_metadata(self, user: User) -> None:
+        """Ensure subscription-related flags/dates are current."""
+        try:
+            annotate_subscription_metadata(user.transactions)
+        except Exception:
+            pass
     
     def _hash_password(self, password: str) -> str:
         """Hash password using SHA-256"""
@@ -312,14 +350,138 @@ class UserManager:
         return self._users.get(username)
     
     def add_transactions(self, username: str, transactions: List[Transaction]) -> tuple[bool, str]:
-        """Add transactions to a user's account"""
+        """Add transactions to a user's account, avoiding duplicates"""
         if not self.user_exists(username):
             return False, "User not found"
         
         user = self._users[username]
-        user.transactions.extend(transactions)
+        
+        # Get existing transaction IDs for duplicate detection
+        existing_ids = {t.id for t in user.transactions}
+        existing_keys = {
+            (t.date, t.amount, t.description) 
+            for t in user.transactions
+        }
+        
+        # Filter out duplicates based on ID and (date, amount, description) tuple
+        new_transactions = []
+        duplicates_count = 0
+        
+        for txn in transactions:
+            # Check if transaction ID already exists
+            if txn.id in existing_ids:
+                duplicates_count += 1
+                continue
+            
+            # Check if same transaction (date, amount, description) already exists
+            txn_key = (txn.date, txn.amount, txn.description)
+            if txn_key in existing_keys:
+                duplicates_count += 1
+                continue
+            
+            # New transaction - add it
+            new_transactions.append(txn)
+            existing_ids.add(txn.id)
+            existing_keys.add(txn_key)
+        
+        # Add only new transactions
+        if new_transactions:
+            user.transactions.extend(new_transactions)
+            # Normalize statement months by upload grouping
+            self._normalize_statement_months(username)
+            self._refresh_subscription_metadata(user)
+            self._save_users()
+        
+        # Return message with duplicate info
+        if duplicates_count > 0:
+            message = f"Added {len(new_transactions)} new transactions. Skipped {duplicates_count} duplicates."
+        else:
+            message = f"Added {len(new_transactions)} transactions successfully!"
+        
+        return True, message
+
+    def _normalize_statement_months(self, username: str) -> None:
+        """Assign 'Month N' per upload group based on earliest date of each upload.
+        Groups transactions by source_upload_id and sorts chronologically by earliest date.
+        This ensures Month 1, Month 2, etc. are assigned in chronological order of uploads.
+        """
+        if not self.user_exists(username):
+            return
+        user = self._users[username]
+        from collections import defaultdict
+        group_dates = defaultdict(list)
+        
+        # Group transactions by upload_id (each upload gets unique ID)
+        for t in user.transactions:
+            key = t.source_upload_id or ""
+            if key:
+                group_dates[key].append(t.date)
+            else:
+                # For transactions without upload_id, use their date as a fallback key
+                # This handles legacy transactions that were uploaded before upload_id was implemented
+                date_key = t.date.strftime("%Y-%m")
+                group_dates[f"date_{date_key}"].append(t.date)
+        
+        # Build sorted groups by earliest date in each group
+        ordering = []
+        for key, dates in group_dates.items():
+            if dates:
+                earliest = min(dates)
+                ordering.append((earliest, key))
+        
+        if not ordering:
+            return
+        
+        # Sort by earliest date chronologically
+        ordering.sort()
+        
+        # Create label map: Month 1, Month 2, etc. in chronological order
+        label_map = {key: f"Month {i+1}" for i, (_, key) in enumerate(ordering)}
+        
+        # Apply labels to all transactions
+        for t in user.transactions:
+            key = t.source_upload_id or ""
+            if key and key in label_map:
+                # Has upload_id and is in our map
+                t.statement_month = label_map[key]
+            elif not key:
+                # No upload_id, use date-based grouping
+                date_key = t.date.strftime("%Y-%m")
+                fallback_key = f"date_{date_key}"
+                if fallback_key in label_map:
+                    t.statement_month = label_map[fallback_key]
+    
+    def remove_duplicate_transactions(self, username: str) -> tuple[bool, str]:
+        """Remove duplicate transactions from a user's account"""
+        if not self.user_exists(username):
+            return False, "User not found"
+        
+        user = self._users[username]
+        original_count = len(user.transactions)
+        
+        # Use a set to track seen transactions by (date, amount, description, source_upload_id)
+        seen = set()
+        unique_transactions = []
+        duplicates_removed = 0
+        
+        for txn in user.transactions:
+            # Create a unique key for duplicate detection
+            # Include source_upload_id to allow same transaction from different uploads if needed
+            # But prefer keeping the one with more metadata (has upload_id, has category, etc.)
+            txn_key = (txn.date, txn.amount, txn.description, txn.source_upload_id or "")
+            
+            if txn_key not in seen:
+                seen.add(txn_key)
+                unique_transactions.append(txn)
+            else:
+                duplicates_removed += 1
+        
+        # Update user's transactions
+        user.transactions = unique_transactions
+        self._refresh_subscription_metadata(user)
         self._save_users()
-        return True, f"Added {len(transactions)} transactions successfully!"
+        
+        return True, f"Removed {duplicates_removed} duplicate transactions. {len(unique_transactions)} unique transactions remaining."
     
     def update_transaction(self, username: str, transaction_id: str, **kwargs) -> tuple[bool, str]:
         """Update a specific transaction"""
@@ -340,6 +502,7 @@ class UserManager:
         if 'notes' in kwargs:
             transaction.notes = kwargs['notes']
         
+        self._refresh_subscription_metadata(user)
         self._save_users()
         return True, "Transaction updated successfully!"
     
@@ -349,22 +512,24 @@ class UserManager:
             return []
         
         return self._users[username].transactions
+
+    def recompute_goal_streak(self, username: str) -> int:
+        """Compute consecutive month savings-goal streak using analytics module."""
+        if not self.user_exists(username):
+            return 0
+        user = self._users[username]
+        
+        from decimal import Decimal
+        goal = Decimal(str(user.monthly_savings_goal)) if user.monthly_savings_goal else None
+        
+        streak = compute_goal_streak(user.transactions, goal)
+        user.goal_streak_count = streak
+        self._save_users()
+        return streak
     
     def get_spending_by_category(self, username: str) -> dict:
-        """Get spending totals by category for a user"""
+        """Get spending totals by category for a user using analytics module."""
         if not self.user_exists(username):
             return {}
         
-<<<<<<< Updated upstream
-        category_totals = {}
-        for txn in self._users[username].transactions:
-            if txn.amount < 0:  # Only spending (negative amounts)
-                category = txn.category
-                if category not in category_totals:
-                    category_totals[category] = 0
-                category_totals[category] += abs(txn.amount)
-        
-        return category_totals
-=======
         return get_spending_by_category_dict(self._users[username].transactions)
->>>>>>> Stashed changes

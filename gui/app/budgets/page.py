@@ -7,8 +7,7 @@ This is the refactored version of the monolithic budgets.py.
 """
 
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QTabWidget, QWidget as QWidgetType
+    QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QTabWidget
 )
 from PyQt6.QtCore import pyqtSignal
 from typing import Optional
@@ -103,11 +102,20 @@ class BudgetAnalysisPage(QWidget):
         if not self.user:
             return
 
-        self.loan_tab.set_user(self.user)
-
         if not self.user.transactions:
+            self.loan_tab.set_user(self.user)
             return
         
+        if self.user_manager:
+            try:
+                self.user_manager.recompute_goal_streak(self.user.username)
+                refreshed_user = self.user_manager.get_user(self.user.username)
+                if refreshed_user:
+                    self.user = refreshed_user
+            except Exception:
+                # Non-critical failures shouldn't block UI refresh.
+                pass
+
         transactions = self.user.transactions
         
         # Update all tabs

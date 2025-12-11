@@ -17,11 +17,12 @@ Implements:
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, 
     QPushButton, QMessageBox, QFormLayout, QGroupBox,
-    QStackedWidget, QCheckBox, QFrame
+    QStackedWidget, QCheckBox, QFrame, QDialog
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QFont, QPixmap, QPalette
-from models import UserManager, User
+from ..models.user import UserManager, User
+from ..style import Styles
 
 
 class LoginPage(QWidget):
@@ -41,128 +42,78 @@ class LoginPage(QWidget):
         layout.setContentsMargins(50, 50, 50, 50)
         
         # Title
-        title_label = QLabel("Welcome Back!")
+        title_label = QLabel("Personal Budget Management")
         title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         title_font = QFont()
-        title_font.setPointSize(24)
+        title_font.setPointSize(26)
         title_font.setBold(True)
         title_label.setFont(title_font)
-        title_label.setStyleSheet("color: #2c3e50; margin-bottom: 10px;")
+        title_label.setStyleSheet(Styles.LABEL_TITLE_LARGE)
         layout.addWidget(title_label)
         
-        subtitle_label = QLabel("Sign in to your Personal Budget Management account")
+        subtitle_label = QLabel("Sign In")
         subtitle_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         subtitle_font = QFont()
-        subtitle_font.setPointSize(12)
+        subtitle_font.setPointSize(26)
+        subtitle_font.setBold(True)
         subtitle_label.setFont(subtitle_font)
-        subtitle_label.setStyleSheet("color: #7f8c8d; margin-bottom: 30px;")
+        subtitle_label.setStyleSheet(Styles.LABEL_SUBTITLE)
         layout.addWidget(subtitle_label)
         
         # Login form
         form_group = QGroupBox()
-        form_group.setStyleSheet("""
-            QGroupBox {
-                border: 2px solid #bdc3c7;
-                border-radius: 10px;
-                padding: 20px;
-                background-color: #f8f9fa;
-            }
-            QGroupBox::title {
-                subcontrol-origin: margin;
-                left: 10px;
-                padding: 0 5px 0 5px;
-            }
-        """)
+        form_group.setStyleSheet(Styles.GROUPBOX_FORM)
         
         form_layout = QFormLayout()
         form_layout.setSpacing(15)
+        form_layout.setLabelAlignment(Qt.AlignmentFlag.AlignLeft)
+        form_layout.setFormAlignment(Qt.AlignmentFlag.AlignHCenter)
+        form_layout.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
         
         # Username field
         self.username_input = QLineEdit()
-        self.username_input.setPlaceholderText("Enter your username")
-        self.username_input.setStyleSheet("""
-            QLineEdit {
-                padding: 12px;
-                border: 2px solid #ddd;
-                border-radius: 6px;
-                font-size: 14px;
-            }
-            QLineEdit:focus {
-                border-color: #3498db;
-            }
-        """)
+        self.username_input.setPlaceholderText("Username")
+        self.username_input.setStyleSheet(Styles.LINE_EDIT)
         form_layout.addRow("Username:", self.username_input)
         
         # Password field
         self.password_input = QLineEdit()
-        self.password_input.setPlaceholderText("Enter your password")
+        self.password_input.setPlaceholderText("Password")
         self.password_input.setEchoMode(QLineEdit.EchoMode.Password)
-        self.password_input.setStyleSheet("""
-            QLineEdit {
-                padding: 12px;
-                border: 2px solid #ddd;
-                border-radius: 6px;
-                font-size: 14px;
-            }
-            QLineEdit:focus {
-                border-color: #3498db;
-            }
-        """)
+        self.password_input.setStyleSheet(Styles.LINE_EDIT)
         form_layout.addRow("Password:", self.password_input)
         
         # Remember me checkbox
         self.remember_checkbox = QCheckBox("Remember me")
-        self.remember_checkbox.setStyleSheet("color: #2c3e50;")
+        self.remember_checkbox.setStyleSheet(Styles.CHECKBOX)
         form_layout.addRow("", self.remember_checkbox)
         
-        form_group.setLayout(form_layout)
-        layout.addWidget(form_group)
-        
-        # Login button
+        # Assemble form group with fields, primary action and secondary links inside the box
+        group_vbox = QVBoxLayout()
+        group_vbox.setSpacing(14)
+        group_vbox.addLayout(form_layout)
+
         self.login_button = QPushButton("Sign In")
-        self.login_button.setStyleSheet("""
-            QPushButton {
-                background-color: #3498db;
-                color: white;
-                border: none;
-                padding: 15px;
-                border-radius: 6px;
-                font-size: 16px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #2980b9;
-            }
-            QPushButton:pressed {
-                background-color: #21618c;
-            }
-        """)
+        self.login_button.setStyleSheet(Styles.BUTTON_PRIMARY)
         self.login_button.clicked.connect(self.handle_login)
-        layout.addWidget(self.login_button)
-        
-        # Sign up link
-        signup_layout = QHBoxLayout()
-        signup_label = QLabel("Don't have an account?")
-        signup_label.setStyleSheet("color: #7f8c8d;")
-        signup_button = QPushButton("Sign Up")
-        signup_button.setStyleSheet("""
-            QPushButton {
-                color: #3498db;
-                border: none;
-                background: transparent;
-                text-decoration: underline;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                color: #2980b9;
-            }
-        """)
-        signup_button.clicked.connect(self.switch_to_signup.emit)
-        
-        signup_layout.addWidget(signup_label)
-        signup_layout.addWidget(signup_button)
-        signup_layout.addStretch()
-        layout.addLayout(signup_layout)
+        group_vbox.addWidget(self.login_button)
+
+        links_row = QHBoxLayout()
+        forgot_btn = QPushButton("Forgot Password?")
+        forgot_btn.setStyleSheet(Styles.BUTTON_TEXT)
+        forgot_btn.clicked.connect(self.open_reset_password_dialog)
+        links_row.addWidget(forgot_btn)
+        links_row.addStretch()
+        signup_btn = QPushButton("Create an account")
+        signup_btn.setStyleSheet(Styles.BUTTON_TEXT)
+        signup_btn.clicked.connect(self.switch_to_signup.emit)
+        links_row.addWidget(signup_btn)
+        group_vbox.addLayout(links_row)
+
+        form_group.setLayout(group_vbox)
+        layout.addWidget(form_group, 0, Qt.AlignmentFlag.AlignHCenter)
+
+        # (Forgot password moved into links row above)
         
         # Set layout
         layout.addStretch()
@@ -170,6 +121,11 @@ class LoginPage(QWidget):
         
         # Connect Enter key to login
         self.password_input.returnPressed.connect(self.handle_login)
+
+    def open_reset_password_dialog(self):
+        """Open a simple reset password dialog without external auth."""
+        dlg = ResetPasswordDialog(self.user_manager, self)
+        dlg.exec()
     
     def handle_login(self):
         """Handle login attempt"""
@@ -183,7 +139,6 @@ class LoginPage(QWidget):
         success, message, user = self.user_manager.authenticate_user(username, password)
         
         if success:
-            QMessageBox.information(self, "Success", message)
             self.login_successful.emit(user)
             self.clear_form()
         else:
@@ -213,102 +168,54 @@ class SignupPage(QWidget):
         layout.setContentsMargins(50, 50, 50, 50)
         
         # Title
-        title_label = QLabel("Create Account")
+        title_label = QLabel("Personal Budget Management")
         title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         title_font = QFont()
-        title_font.setPointSize(24)
+        title_font.setPointSize(26)
         title_font.setBold(True)
         title_label.setFont(title_font)
-        title_label.setStyleSheet("color: #2c3e50; margin-bottom: 10px;")
+        title_label.setStyleSheet(Styles.LABEL_TITLE_LARGE)
         layout.addWidget(title_label)
         
-        subtitle_label = QLabel("Join Team 8's Personal Budget Management System")
+        subtitle_label = QLabel("Create Account")
         subtitle_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         subtitle_font = QFont()
-        subtitle_font.setPointSize(12)
+        subtitle_font.setPointSize(26)
+        subtitle_font.setBold(True)
         subtitle_label.setFont(subtitle_font)
-        subtitle_label.setStyleSheet("color: #7f8c8d; margin-bottom: 30px;")
+        subtitle_label.setStyleSheet(Styles.LABEL_SUBTITLE)
         layout.addWidget(subtitle_label)
         
         # Signup form
         form_group = QGroupBox()
-        form_group.setStyleSheet("""
-            QGroupBox {
-                border: 2px solid #bdc3c7;
-                border-radius: 10px;
-                padding: 20px;
-                background-color: #f8f9fa;
-            }
-            QGroupBox::title {
-                subcontrol-origin: margin;
-                left: 10px;
-                padding: 0 5px 0 5px;
-            }
-        """)
+        form_group.setStyleSheet(Styles.GROUPBOX_FORM)
         
         form_layout = QFormLayout()
         form_layout.setSpacing(15)
+        form_layout.setLabelAlignment(Qt.AlignmentFlag.AlignLeft)
+        form_layout.setFormAlignment(Qt.AlignmentFlag.AlignHCenter)
+        form_layout.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
         
         # Username field
         self.username_input = QLineEdit()
-        self.username_input.setPlaceholderText("Choose a username (3-20 characters)")
-        self.username_input.setStyleSheet("""
-            QLineEdit {
-                padding: 12px;
-                border: 2px solid #ddd;
-                border-radius: 6px;
-                font-size: 14px;
-            }
-            QLineEdit:focus {
-                border-color: #3498db;
-            }
-        """)
+        self.username_input.setPlaceholderText("Username (3-20 characters)")
+        self.username_input.setStyleSheet(Styles.LINE_EDIT)
         form_layout.addRow("Username:", self.username_input)
         
         # Email field
         self.email_input = QLineEdit()
-        self.email_input.setPlaceholderText("Enter your email address")
-        self.email_input.setStyleSheet("""
-            QLineEdit {
-                padding: 12px;
-                border: 2px solid #ddd;
-                border-radius: 6px;
-                font-size: 14px;
-            }
-            QLineEdit:focus {
-                border-color: #3498db;
-            }
-        """)
+        self.email_input.setPlaceholderText("Email address")
+        self.email_input.setStyleSheet(Styles.LINE_EDIT)
         form_layout.addRow("Email:", self.email_input)
         
         # Name fields
         name_layout = QHBoxLayout()
         self.first_name_input = QLineEdit()
         self.first_name_input.setPlaceholderText("First name")
-        self.first_name_input.setStyleSheet("""
-            QLineEdit {
-                padding: 12px;
-                border: 2px solid #ddd;
-                border-radius: 6px;
-                font-size: 14px;
-            }
-            QLineEdit:focus {
-                border-color: #3498db;
-            }
-        """)
+        self.first_name_input.setStyleSheet(Styles.LINE_EDIT)
         self.last_name_input = QLineEdit()
         self.last_name_input.setPlaceholderText("Last name")
-        self.last_name_input.setStyleSheet("""
-            QLineEdit {
-                padding: 12px;
-                border: 2px solid #ddd;
-                border-radius: 6px;
-                font-size: 14px;
-            }
-            QLineEdit:focus {
-                border-color: #3498db;
-            }
-        """)
+        self.last_name_input.setStyleSheet(Styles.LINE_EDIT)
         name_layout.addWidget(self.first_name_input)
         name_layout.addWidget(self.last_name_input)
         form_layout.addRow("Name:", name_layout)
@@ -316,100 +223,45 @@ class SignupPage(QWidget):
         # Phone field (optional)
         self.phone_input = QLineEdit()
         self.phone_input.setPlaceholderText("Phone number (optional)")
-        self.phone_input.setStyleSheet("""
-            QLineEdit {
-                padding: 12px;
-                border: 2px solid #ddd;
-                border-radius: 6px;
-                font-size: 14px;
-            }
-            QLineEdit:focus {
-                border-color: #3498db;
-            }
-        """)
+        self.phone_input.setStyleSheet(Styles.LINE_EDIT)
         form_layout.addRow("Phone:", self.phone_input)
         
         # Password fields
         self.password_input = QLineEdit()
-        self.password_input.setPlaceholderText("Create a password (min 6 characters)")
+        self.password_input.setPlaceholderText("Password (min 6 characters)")
         self.password_input.setEchoMode(QLineEdit.EchoMode.Password)
-        self.password_input.setStyleSheet("""
-            QLineEdit {
-                padding: 12px;
-                border: 2px solid #ddd;
-                border-radius: 6px;
-                font-size: 14px;
-            }
-            QLineEdit:focus {
-                border-color: #3498db;
-            }
-        """)
+        self.password_input.setStyleSheet(Styles.LINE_EDIT)
         form_layout.addRow("Password:", self.password_input)
         
         self.confirm_password_input = QLineEdit()
         self.confirm_password_input.setPlaceholderText("Confirm your password")
         self.confirm_password_input.setEchoMode(QLineEdit.EchoMode.Password)
-        self.confirm_password_input.setStyleSheet("""
-            QLineEdit {
-                padding: 12px;
-                border: 2px solid #ddd;
-                border-radius: 6px;
-                font-size: 14px;
-            }
-            QLineEdit:focus {
-                border-color: #3498db;
-            }
-        """)
+        self.confirm_password_input.setStyleSheet(Styles.LINE_EDIT)
         form_layout.addRow("Confirm Password:", self.confirm_password_input)
         
-        form_group.setLayout(form_layout)
-        layout.addWidget(form_group)
-        
-        # Signup button
+        # Assemble signup group with fields, primary action and secondary link inside the box
+        group_vbox = QVBoxLayout()
+        group_vbox.setSpacing(14)
+        group_vbox.addLayout(form_layout)
+
         self.signup_button = QPushButton("Create Account")
-        self.signup_button.setStyleSheet("""
-            QPushButton {
-                background-color: #27ae60;
-                color: white;
-                border: none;
-                padding: 15px;
-                border-radius: 6px;
-                font-size: 16px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #229954;
-            }
-            QPushButton:pressed {
-                background-color: #1e8449;
-            }
-        """)
+        self.signup_button.setStyleSheet(Styles.BUTTON_PRIMARY)
         self.signup_button.clicked.connect(self.handle_signup)
-        layout.addWidget(self.signup_button)
+        group_vbox.addWidget(self.signup_button)
+
+        # Secondary link: already have an account (Sign In)
+        link_row = QHBoxLayout()
+        signin_btn = QPushButton("Already have an account? Sign In")
+        signin_btn.setStyleSheet(Styles.BUTTON_TEXT)
+        signin_btn.clicked.connect(self.switch_to_login.emit)
+        link_row.addWidget(signin_btn)
+        link_row.addStretch()
+        group_vbox.addLayout(link_row)
+
+        form_group.setLayout(group_vbox)
+        layout.addWidget(form_group, 0, Qt.AlignmentFlag.AlignHCenter)
         
-        # Login link
-        login_layout = QHBoxLayout()
-        login_label = QLabel("Already have an account?")
-        login_label.setStyleSheet("color: #7f8c8d;")
-        login_button = QPushButton("Sign In")
-        login_button.setStyleSheet("""
-            QPushButton {
-                color: #3498db;
-                border: none;
-                background: transparent;
-                text-decoration: underline;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                color: #2980b9;
-            }
-        """)
-        login_button.clicked.connect(self.switch_to_login.emit)
-        
-        login_layout.addWidget(login_label)
-        login_layout.addWidget(login_button)
-        login_layout.addStretch()
-        layout.addLayout(login_layout)
+        # (Removed duplicate bottom login link; link lives inside form box)
         
         # Set layout
         layout.addStretch()
@@ -507,3 +359,77 @@ class AuthWidget(QWidget):
     def show_signup(self):
         """Show signup page"""
         self.stacked_widget.setCurrentWidget(self.signup_page)
+
+
+class ResetPasswordDialog(QDialog):
+    """Simple dialog to reset password by username (no external auth)."""
+
+    def __init__(self, user_manager: UserManager, parent=None):
+        super().__init__(parent)
+        self.user_manager = user_manager
+        self.setWindowTitle("Reset Password")
+        self.setModal(True)
+        self.setMinimumSize(420, 260)
+        self._build_ui()
+
+    def _build_ui(self):
+        layout = QVBoxLayout()
+        layout.setSpacing(16)
+        layout.setContentsMargins(20, 20, 20, 20)
+
+        title = QLabel("Reset your password")
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        f = QFont()
+        f.setPointSize(16)
+        f.setBold(True)
+        title.setFont(f)
+        title.setStyleSheet(Styles.LABEL_TITLE)
+        layout.addWidget(title)
+
+        self.username_input = QLineEdit()
+        self.username_input.setPlaceholderText("Username")
+        self.new_pw_input = QLineEdit()
+        self.new_pw_input.setPlaceholderText("New password (min 6 chars)")
+        self.new_pw_input.setEchoMode(QLineEdit.EchoMode.Password)
+        self.confirm_pw_input = QLineEdit()
+        self.confirm_pw_input.setPlaceholderText("Confirm new password")
+        self.confirm_pw_input.setEchoMode(QLineEdit.EchoMode.Password)
+
+        for w in (self.username_input, self.new_pw_input, self.confirm_pw_input):
+            w.setStyleSheet(Styles.LINE_EDIT)
+            layout.addWidget(w)
+
+        btn_row = QHBoxLayout()
+        save_btn = QPushButton("Update Password")
+        save_btn.setStyleSheet(Styles.BUTTON_SUCCESS)
+        cancel_btn = QPushButton("Cancel")
+        cancel_btn.setStyleSheet(Styles.BUTTON_NEUTRAL)
+        btn_row.addWidget(save_btn)
+        btn_row.addWidget(cancel_btn)
+        btn_row.addStretch()
+        layout.addLayout(btn_row)
+
+        save_btn.clicked.connect(self._handle_save)
+        cancel_btn.clicked.connect(self.reject)
+        self.setLayout(layout)
+
+    def _handle_save(self):
+        username = (self.username_input.text() or "").strip()
+        pw = (self.new_pw_input.text() or "").strip()
+        confirm = (self.confirm_pw_input.text() or "").strip()
+
+        if not username or not pw or not confirm:
+            QMessageBox.warning(self, "Missing Info", "Please fill all fields.")
+            return
+        if pw != confirm:
+            QMessageBox.warning(self, "Mismatch", "Passwords do not match.")
+            return
+        if not self.user_manager.user_exists(username):
+            QMessageBox.warning(self, "User Not Found", "No account with that username.")
+            return
+        ok, msg = self.user_manager.update_user(username, password=pw)
+        if ok:
+            QMessageBox.information(self, "Updated", "Password updated successfully.")
+            self.accept()
+        else:
+            QMessageBox.warning(self, "Not Updated", msg or "Unable to update password.")
