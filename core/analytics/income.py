@@ -1,4 +1,6 @@
 """
+Author: Sheng Lu
+
 Income Analytics
 Personal Budget Management System – Income Calculations & Analysis
 

@@ -1,4 +1,6 @@
 """
+Author: Sheng Lu
+
 Months Analytics
 Personal Budget Management System – Month-based Filtering & Grouping
 

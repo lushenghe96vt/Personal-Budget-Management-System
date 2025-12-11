@@ -1,4 +1,6 @@
 """
+Author: Sheng Lu
+
 Forecasting Analytics
 Personal Budget Management System – Spending Forecasts
 
